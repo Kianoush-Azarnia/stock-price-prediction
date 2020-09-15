@@ -1,7 +1,7 @@
 import os
 import requests
 from datetime import date
-from get_dates import get_dates_from_start_date_to_today
+from code1_get_dates import get_dates_from_start_date_to_today
 
 last_3_years = get_dates_from_start_date_to_today(date(2018, 1, 1))
 

@@ -2,4 +2,4 @@ Trades
 .idea
 __pycache__
 venv
-join_symbol_codes.py
+test.py

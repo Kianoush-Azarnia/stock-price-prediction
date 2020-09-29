@@ -11,7 +11,7 @@ per_symbol_counts_df = pd.read_csv(data_path + '\\' + 'per_symbol_counts.csv')
 
 # print(per_symbol_counts_df.head())
 
-required_trades_number = 20
+required_trades_number = 50
 symbols_with_sufficient_trades = \
     per_symbol_counts_df[per_symbol_counts_df['counts'] >= required_trades_number]['persian_symbol']
 

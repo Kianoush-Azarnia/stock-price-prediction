@@ -3,3 +3,5 @@ Trades
 __pycache__
 venv
 test.py
+.Rproj.user
+test.R

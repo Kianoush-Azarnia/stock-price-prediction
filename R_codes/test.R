@@ -131,16 +131,17 @@ myexample.ts <- ts(prices_ts_example$final_price, frequency = 1)
 myexample.ets.AAN <- ets(myexample.ts, model = "AAN")
 myexample.ets.MMN <- ets(myexample.ts, model = "MMN", damped = FALSE)
 myexample.ets.MMdN <- ets(myexample.ts, model = "MMN", damped = TRUE)
+?forecast
+myexample.ets.AAN.pred <- forecast(myexample.ets.AAN, h = 115, 
+                                   level = c(80, 95),)
 
-myexample.ets.AAN.pred <- forecast(
-  myexample.ets.AAN, h = 115, level = c(0.2, 0.4, 0.6, 0.8),
-)
-myexample.ets.MMN.pred <- forecast(
-  myexample.ets.MMN, h = 115, level = c(0.2, 0.4, 0.6, 0.8),
-)
-myexample.ets.MMdN.pred <- forecast(
-  myexample.ets.MMdN, h = 115, level = c(0.2, 0.4, 0.6, 0.8),
-)
+myexample.ets.MMN.pred <- forecast(myexample.ets.MMN, h = 115, 
+                                   level = c(80, 95),)
+
+myexample.ets.MMdN.pred <- forecast(myexample.ets.MMdN, h = 115, 
+                                    level = c(80, 95),)
+
+accuracy(myexample.ets.AAN.pred)[1,"MAE"]
 
 # This command sets the plot window to show 1 row of 3 plots.
 par(mfrow = c(1, 3))
@@ -203,8 +204,8 @@ for(j in fixed.nTrain : (fixed.nTrain + fixed.nValid - stepsAhead)) {
 }
 
 print("naive")
-mean(abs(naive.error))
-sqrt(mean(naive.error^2))
+mean(abs(naive.error)) # MAE
+sqrt(mean(naive.error^2)) # RMSE
 mean(abs(naive.percent.error))
 naive.pred
 
@@ -215,3 +216,26 @@ mean(abs(snaive.percent.error))
 snaive.pred
 
 #----
+# write a sample dataframe
+employee <- c('John Doe','کمال ملکی','Jolie Hope')
+salary <- c(21000, 23400, 26800)
+startdate <- as.Date(c('2010-11-1','2008-3-25','2007-3-14'))
+
+employ.data <- data.frame(employee, salary, startdate)
+names(employ.data) <- c("name", "salary", "strat date")
+
+temp.df <- data.frame("سلطان عثمانی", "1000000", "1585-06-09")
+names(temp.df) <- names(employ.data)
+
+employ.data <- rbind(employ.data, temp.df)
+
+tdf <- data.frame(matrix(nrow=0, ncol=3))
+tdf <- data.frame("Johnny", "2000000", "2069-08-05")
+colnames(tdf) <- c("name", "salary", "strat date")
+employ.data <- rbind(employ.data, tdf)
+
+#----
+# ets test
+models <- c("AAN", "AAZ", "ANN", "ANZ", "MAN", "MAZ", "MNN", "MNZ", "MMN", "MMZ")
+ets(myexample.ts, model = "AMN")
+

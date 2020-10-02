@@ -4,3 +4,6 @@ __pycache__
 venv
 test.py
 .Rproj.user
+exponential_smoothing_benchmark_one_random_symbol.xlsx
+exponential_smoothing_benchmark3.csv
+exponential_smoothing_benchmark - Copy.csv

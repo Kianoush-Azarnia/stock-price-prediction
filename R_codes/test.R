@@ -29,13 +29,46 @@ tail(prices_ts_example)
 
 myexample.ts <- ts(prices_ts_example$final_price, frequency = 1)
 
-myexample.ts
-
+myexample.ts <- window(myexample.ts, start = j + 4 + 1, 
+                       end = j + 4 + 1)
+class(myexample.ts[[1]])
 plot(
   myexample.ts, xlab = "Day", ylab = "Final Price", 
   ylim = c(0, 50000), bty = "l",
 )
 
+#----
+# test loop of ets benchmark
+library("forecast")
+len = length(myexample.ts)
+valid.size = 1
+train.size = valid.size * 9
+j = 20
+for(j in 1 : (len - train.size - valid.size)) {
+  train.ts <- window(myexample.ts, start = j , end = j + train.size)
+  
+  valid.ts <- window(myexample.ts, start = j + train.size + 1, 
+                     end = j + train.size + valid.size)
+  myexample.ts[j + train.size + valid.size]
+  
+  ets.fit <- ets(
+    train.ts, model = "AAN"
+  )
+  # , alpha = sel.alpha, beta = sel.beta
+  # gamma = sel.gamma, restrict = FALSE, 
+  # allow.multiplicative.trend = TRUE,
+  
+  ets.pred <- forecast(ets.fit, h = valid.size)
+  ets.pred$mean[[1]]
+  is.ts(ets.pred$mean)
+  ets.pred[1]
+  
+  ets.mae.list[[j]] <- accuracy(ets.pred, valid.ts)[1,"MAE"]
+  ets.rmse.list[[j]] <- accuracy(ets.pred, valid.ts)[1,"RMSE"]
+  
+  print(j)
+  
+}
 #----
 # plot above time series example in 2 shapes: with trend & zoom
 # 1- with trend line
@@ -239,7 +272,7 @@ employ.data <- rbind(employ.data, tdf)
 models <- c("AAN", "AAZ", "ANN", "ANZ", "MAN", "MAZ", "MNN", "MNZ", "MMN", "MMZ")
 ets(myexample.ts, model = "AMN")
 
-
+class(prices_ts_example[j,]$final_price)
 #----
 # ets benchmark function test
 # read csv, rename columns, change trade_date data type to date
@@ -399,3 +432,5 @@ ets.benchmark(models = ets.models, parameters.values = combinations.6,
               stock.symbols = random.selected.symbols, 
               trades = sufficient.trades.ts.df, validation.sizes = validations)
 
+
+#----

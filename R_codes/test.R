@@ -29,14 +29,17 @@ tail(prices_ts_example)
 
 myexample.ts <- ts(prices_ts_example$final_price, frequency = 1)
 
-myexample.ts <- window(myexample.ts, start = j + 4 + 1, 
-                       end = j + 4 + 1)
-class(myexample.ts[[1]])
+# myexample.ts <- window(myexample.ts, start = j + 4 + 1, 
+#                        end = j + 4 + 1)
+# class(myexample.ts[[1]])
+
+# run lag func from stats package (not dplyr) to work with ts objects:
+lag.example <- stats::lag(myexample.ts, k = 10)
 plot(
   myexample.ts, xlab = "Day", ylab = "Final Price", 
-  ylim = c(0, 50000), bty = "l",
-)
-
+  ylim = c(0, 50000), main="compare ts with lag"
+) #  bty = "l",
+lines(lag.example, col = "red")
 #----
 # test loop of ets benchmark
 library("forecast")

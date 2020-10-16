@@ -7,3 +7,9 @@ test.py
 exponential_smoothing_benchmark_one_random_symbol.xlsx
 exponential_smoothing_benchmark3.csv
 exponential_smoothing_benchmark - Copy.csv
+tabats_test_benchmark.csv
+tabats_test_predictions.csv
+exp_smoothing_predictions2.csv
+exp_smoothing_benchmark2.csv
+.RData
+.Rhistory

@@ -122,12 +122,12 @@ ets.benchmark <- function(models, stock.symbols, trades) {
           
           ets.pred <- forecast(ets.fit, h = valid.size)
           
-          ets.me.list[[j]] <- accuracy(ets.pred, valid.ts)[1,"ME"]
-          ets.mae.list[[j]] <- accuracy(ets.pred, valid.ts)[1,"MAE"]
-          ets.rmse.list[[j]] <- accuracy(ets.pred, valid.ts)[1,"RMSE"]
-          ets.mpe.list[[j]] <- accuracy(ets.pred, valid.ts)[1,"MPE"]
-          ets.mape.list[[j]] <- accuracy(ets.pred, valid.ts)[1,"MAPE"]
-          ets.mase.list[[j]] <- accuracy(ets.pred, valid.ts)[1,"MASE"]
+          ets.me.list[[j]] <- accuracy(ets.pred, valid.ts)[2,"ME"]
+          ets.mae.list[[j]] <- accuracy(ets.pred, valid.ts)[2,"MAE"]
+          ets.rmse.list[[j]] <- accuracy(ets.pred, valid.ts)[2,"RMSE"]
+          ets.mpe.list[[j]] <- accuracy(ets.pred, valid.ts)[2,"MPE"]
+          ets.mape.list[[j]] <- accuracy(ets.pred, valid.ts)[2,"MAPE"]
+          ets.mase.list[[j]] <- accuracy(ets.pred, valid.ts)[2,"MASE"]
           
           if(j%%40==0){print(j)}
           

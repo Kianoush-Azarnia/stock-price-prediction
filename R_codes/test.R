@@ -480,27 +480,34 @@ train.ts <- window(myexample.ts, start = 589 , end = 597)
 valid.ts <- window(myexample.ts, start = 598 , end = 600)
 nValid <- 3
 
+# To fit a model with linear, quadratic, sine, and cosine terms to the data 
+# in R, we add three additional predictors to the linear trend model
+train.lm.sin.trend <- tslm(
+  train.ts ~ trend + I(trend^2) + I(sin(2*pi*trend/2)) + I(cos(2*pi*trend/2))
+)
+train.lm.sin.trend.pred <- forecast(train.lm.sin.trend, h = nValid, level = 0)
+
 # polynomial 4
 train.lm.poly4.trend <- tslm(train.ts ~ trend + I(trend^2) + I(trend^3) + 
                                I(trend^4))
-train.lm.poly4.trend.pred <- forecast(train.lm.expo.trend, 
-                                      h = nValid, level = 0)
+train.lm.poly4.trend.pred <- forecast(train.lm.poly4.trend, h=nValid, level=0)
 
 # quadratic trend prediction
 train.lm.poly.trend <- tslm(train.ts ~ trend + I(trend^2))
-train.lm.poly.trend.pred <- forecast(train.lm.expo.trend, h = nValid, level = 0)
+train.lm.poly.trend.pred <- forecast(train.lm.poly.trend, h=nValid, level=0)
 
 # exponential trend prediction
 train.lm.expo.trend <- tslm(train.ts ~ trend, lambda = 0)
-train.lm.expo.trend.pred <- forecast(train.lm.expo.trend, h = nValid, level = 0)
+train.lm.expo.trend.pred <- forecast(train.lm.expo.trend, h=nValid, level=0)
 
 # linear trend prediction
 train.lm.linear.trend <- tslm(train.ts ~ trend, lambda = 1)
-train.lm.linear.trend.pred <- forecast(train.lm.linear.trend, h = nValid, 
-                                       level = 0)
+train.lm.linear.trend.pred <- forecast(train.lm.linear.trend, h=nValid, level=0)
 
 # green: original data, blue: exponential, black: linear, red = quadratic
 plot(train.ts, lwd=1, col="green", xlim=c(589,601), ylim=c(38000,46000))
+lines(train.lm.sin.trend$fitted.values, lwd=2, col="pink", lty=6)
+lines(train.lm.sin.trend.pred$upper, lwd=4, , col="pink", lty=3)
 # poly4 regression: brown
 lines(train.lm.poly4.trend$fitted.values, lwd=2, col="orange", lty=5)
 lines(train.lm.poly4.trend.pred$upper, lwd=4, col="orange", lty=3)
@@ -522,4 +529,38 @@ summary(train.lm.poly4.trend)
 
 plot(train.lm.expo.trend$residuals)
 
+accuracy(train.lm.sin.trend.pred, valid.ts)
+
 #----
+# prophet example
+library(prophet)
+proph.df <- prices_ts_example
+
+names(proph.df)[ 
+  names(proph.df) == "trade_date"
+] <- "ds"
+
+names(proph.df)[ 
+  names(proph.df) == "final_price"
+] <- "y"
+
+proph.model <- prophet(proph.df)
+
+# make_future_dataframe : Make dataframe with future dates for forecasting.
+# output : Dataframe that extends forward from the end of m$history 
+# for the requested number of periods.
+future <- make_future_dataframe(proph.model, periods = 20)
+tail(future)
+
+forecast <- predict(proph.model, future)
+tail(forecast[c('ds', 'yhat', 'yhat_lower', 'yhat_upper')])
+
+plot(proph.model, forecast)
+
+prophet_plot_components(proph.model, forecast)
+
+dyplot.prophet(proph.model, forecast)
+
+proph.cv.df <- cross_validation(proph.model, horizon=1, units="days",)
+
+performance_metrics(proph.cv.df, rolling_window=1)

@@ -37,12 +37,12 @@ library(lubridate)
 
 stock.symbols <- random.selected.symbols
 trades <- sufficient_trades_ts_df
-bench.cols <- c("symbol", "MAPE")
+bench.cols <- c("symbol", "MAPE", "RMSE")
 
 bench.df <-  data.frame(matrix(nrow=0, ncol=length(bench.cols)))
 names(bench.df) <- bench.cols
 
-pred.cols <- c("symbol", "date", "actual", "predicted", "MAPE")
+pred.cols <- c("symbol", "date", "actual", "predicted", "MAPE", "RMSE")
 
 pred.df <- data.frame(matrix(nrow=0, ncol=length(pred.cols)))
 
@@ -66,6 +66,7 @@ for (sym.i in 1:length(stock.symbols)) {
 
   print(nrow(stock.df))
   reg.mape.list <- rep(0, nrow(stock.df) - train.size - valid.size)
+  reg.rmse.list <- rep(0, nrow(stock.df) - train.size - valid.size)
   
   for(j in 1 : (nrow(stock.df) - train.size - valid.size)) {
     
@@ -86,6 +87,7 @@ for (sym.i in 1:length(stock.symbols)) {
     pred.price <- test_df$yhat
     reg.mape.list[[j]] <- abs(actual.price - pred.price) / 
       (actual.price + 0.000001)
+    reg.rmse.list[[j]] <- (sum((actual.price - pred.price)^2/valid.size))^(0.5)
     
     if(j%%40==0){print(j)}
     
@@ -93,7 +95,8 @@ for (sym.i in 1:length(stock.symbols)) {
       nrow=1, ncol=length(pred.cols)))
     
     temp.pred.df <- data.frame(
-      stock.sym, tdate, actual.price, pred.price, reg.mape.list[[j]]
+      stock.sym, tdate, actual.price, pred.price, reg.mape.list[[j]], 
+      reg.rmse.list[[j]]
     )
     colnames(temp.pred.df) <- pred.cols
     
@@ -103,13 +106,14 @@ for (sym.i in 1:length(stock.symbols)) {
     
   }
   mape_lr_mean <- mean(reg.mape.list)
-  p <- c(stock.sym, mean(mape_lr_mean))
+  rmse_lr_mean <- mean (reg.rmse.list)
+  p <- c(stock.sym, mape_lr_mean, rmse_lr_mean)
   print(p)
   
   temp.bench.df <- data.frame(matrix(
     nrow=1, ncol=length(bench.cols)))
   
-  temp.bench.df <- data.frame(stock.sym, mape_lr_mean)
+  temp.bench.df <- data.frame(stock.sym, mape_lr_mean, rmse_lr_mean)
   colnames(temp.bench.df) <- bench.cols
   
   bench.df <- rbind(bench.df, temp.bench.df)

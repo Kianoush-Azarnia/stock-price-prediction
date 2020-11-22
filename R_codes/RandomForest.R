@@ -123,8 +123,6 @@ for (sym.i in 1:length(stock.symbols)) {
   
   mape_rf_mean <- mean(mape.list[[y]])
   rmse_rf_mean <- (sum((actual.price$y - pred.price$yhat)^2/valid.size))^(0.5)
-  print(":))))))))))))))))))))))))")
-  print(rmse_rf_mean)
   
   p <- c(stock.sym, mape_rf_mean, rmse_rf_mean)
   print(p)

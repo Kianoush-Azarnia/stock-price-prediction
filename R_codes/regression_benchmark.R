@@ -138,7 +138,7 @@ reg.benchmark(stock.symbols = random.selected.symbols,
 
 
 #----
-# read csv exponential smoothing benchmark & predictions
+# read csv regression benchmark & predictions
 library(dplyr)
 
 preds.df = read.csv(

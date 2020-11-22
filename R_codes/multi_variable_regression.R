@@ -29,7 +29,7 @@ random.selected.symbols <- sufficient.trades.symbols[
 
 random.selected.symbols
 #----
-# multi variable regression benchmark function 
+# multi variable regression benchmark
 library(readr)
 
 library(dplyr)

@@ -101,7 +101,7 @@ for (sym.i in 1:length(stock.symbols)) {
                              stopping_metric = "rmse",
                              stopping_tolerance = 0.0001,
                              stopping_rounds = 10,
-                             max_runtime_secs = 60 * 5)
+                             max_runtime_secs = 60 * 10)
   
   rf_grid <- h2o.grid(algorithm = "randomForest",
                   search_criteria = search_criteria_rf,
@@ -149,22 +149,8 @@ for (sym.i in 1:length(stock.symbols)) {
   
   h2o.shutdown(prompt = FALSE)
   
-  Sys.sleep(20)
+  Sys.sleep(5)
 }
 
-previous.bench.df <- read.csv("../Data/ML_benchmark.csv", encoding = "UTF-8")
-names(previous.bench.df)[ 
-  names(previous.bench.df) == "X.U.FEFF.symbol"
-] <- "symbol"
-
-previous.pred.df <- read.csv("../Data/ML_predictions.csv", encoding = "UTF-8")
-names(previous.pred.df)[ 
-  names(previous.pred.df) == "X.U.FEFF.symbol"
-] <- "symbol"
-
-bench.df <- rbind(previous.bench.df, bench.df)
-pred.df <- rbind(previous.pred.df, pred.df)
-
-write_excel_csv(bench.df, "../Data/ML_benchmark.csv")
-write_excel_csv(pred.df, "../Data/ML_predictions.csv")
-
+write_excel_csv(bench.df, "../Data/ML_grid_RF_benchmark.csv")
+write_excel_csv(pred.df, "../Data/ML_grid_RF_predictions.csv")

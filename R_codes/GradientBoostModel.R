@@ -29,7 +29,6 @@ random.selected.symbols <- sufficient.trades.symbols[
 
 random.selected.symbols
 
-
 #----
 library(readr)
 library(dplyr)
@@ -54,10 +53,10 @@ names(pred.df) <- pred.cols
 valid.size <- 20
 train.size <- valid.size * 3
 
-my.model <- "Random Forest"
+my.model <- "Gradient Boost"
 #----
 for (sym.i in 1:length(stock.symbols)) {
-
+  
   stock.sym <- stock.symbols[[sym.i]]
   print(stock.sym)
   
@@ -78,7 +77,6 @@ for (sym.i in 1:length(stock.symbols)) {
   day.index <- train.size + valid.size
   
   mape.list <- rep(0, day.index)
-  # rmse.list <- rep(0, day.index)
   
   train_df <- stock.df[(trade.num - day.index):(trade.num - valid.size),]
   test_df <- stock.df[(trade.num - valid.size + 1):trade.num,]
@@ -92,19 +90,20 @@ for (sym.i in 1:length(stock.symbols)) {
   y <- "y"
   
   #----
-  # Random Forest
-  rf_md <- h2o.randomForest(training_frame = train_h,
-                            x = x, y = y,
-                            ntrees = 500, 
-                            stopping_rounds = 10,
-                            stopping_metric = "RMSE",
-                            score_each_iteration = TRUE,
-                            stopping_tolerance = 0.0001,
-                            seed = 1234)
+  # Gradient Boost
+  gbm_md <- h2o.gbm(
+    training_frame = train_h,
+    x = x, y = y,
+    max_depth = 20,
+    distribution = "gaussian",
+    ntrees = 500,
+    learn_rate = 0.1,
+    score_each_iteration = TRUE
+  )
   
-  print(rf_md@model$model_summary)
+  #print(gbm_md@model$model_summary)
   
-  test_h$yhat <- h2o.predict(rf_md, test_h)
+  test_h$yhat <- h2o.predict(gbm_md, test_h)
   
   symbol_list <- rep(stock.sym, valid.size)
   model_list <- rep(my.model, valid.size)
@@ -112,7 +111,7 @@ for (sym.i in 1:length(stock.symbols)) {
   actual.price <- as.data.frame(test_h$y)
   pred.price <- as.data.frame(test_h$yhat)
   mape.list <- as.data.frame(abs(actual.price - pred.price) / 
-    (actual.price + 0.000001))
+                               (actual.price + 0.000001))
   
   temp.pred.df <- data.frame(
     symbol_list, model_list, tdate, actual.price, pred.price, mape.list
@@ -121,19 +120,19 @@ for (sym.i in 1:length(stock.symbols)) {
   pred.df <- rbind(pred.df, temp.pred.df)
   remove(temp.pred.df)
   
-  mape_rf_mean <- mean(mape.list[[y]])
-  rmse_rf_mean <- (sum((actual.price$y - pred.price$yhat)^2/valid.size))^(0.5)
+  mape_gbm_mean <- mean(mape.list[[y]])
+  rmse_gbm_mean <- (sum((actual.price$y - pred.price$yhat)^2/valid.size))^(0.5)
   
-  p <- c(stock.sym, mape_rf_mean, rmse_rf_mean)
+  p <- c(stock.sym, mape_gbm_mean, rmse_gbm_mean)
   print(p)
   
-  temp.bench.df <- data.frame(stock.sym, my.model, mape_rf_mean, rmse_rf_mean)
+  temp.bench.df <- data.frame(stock.sym, my.model, mape_gbm_mean, rmse_gbm_mean)
   colnames(temp.bench.df) <- bench.cols
   bench.df <- rbind(bench.df, temp.bench.df)
   remove(temp.bench.df)
-
+  
 }
-
 h2o.shutdown(prompt = FALSE)
-write_excel_csv(bench.df, "../Data/ML_RF_benchmark.csv")
-write_excel_csv(pred.df, "../Data/ML_RF_predictions.csv")
+
+write_excel_csv(bench.df, "../Data/ML_GBM_benchmark.csv")
+write_excel_csv(pred.df, "../Data/ML_GBM_predictions.csv")

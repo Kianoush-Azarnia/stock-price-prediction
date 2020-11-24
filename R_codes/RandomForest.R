@@ -52,7 +52,7 @@ pred.df <- data.frame(matrix(nrow=0, ncol=length(pred.cols)))
 names(pred.df) <- pred.cols
 
 valid.size <- 20
-train.size <- valid.size * 3
+train.size <- valid.size * 10
 
 my.model <- "Random Forest"
 #----

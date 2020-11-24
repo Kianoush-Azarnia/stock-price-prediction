@@ -50,7 +50,7 @@ pred.df <- data.frame(matrix(nrow=0, ncol=length(pred.cols)))
 names(pred.df) <- pred.cols
 
 valid.size <- 20
-train.size <- valid.size * 3
+train.size <- valid.size * 10
 
 my.model <- "Deep Learning"
 #----
@@ -96,19 +96,19 @@ for (sym.i in 1:length(stock.symbols)) {
   # ditribution = poisson, laplace, tweedie, gaussian, huber, gamma, quantile
   # tweedie_power = 1.5,
   dl_md <- h2o.deeplearning(x = x, y = y,
-              distribution = "gaussian",
-              activation = "Tanh",
-              epochs = 1000,
-              train_samples_per_iteration = -1,
-              reproducible = FALSE,
-              balance_classes = FALSE,
-              force_load_balance = FALSE,
-              seed = 2020,
-              score_training_samples = 0,
-              score_validation_samples = 0,
-              training_frame = train_h,
-              stopping_rounds = 0,
-              stopping_metric = "RMSE")
+                            distribution = "gaussian",
+                            activation = "Tanh",
+                            epochs = 1000,
+                            train_samples_per_iteration = -1,
+                            reproducible = FALSE,
+                            balance_classes = FALSE,
+                            force_load_balance = FALSE,
+                            seed = 2020,
+                            score_training_samples = 0,
+                            score_validation_samples = 0,
+                            training_frame = train_h,
+                            stopping_rounds = 0,
+                            stopping_metric = "RMSE")
   
   print(h2o.performance(dl_md))
   

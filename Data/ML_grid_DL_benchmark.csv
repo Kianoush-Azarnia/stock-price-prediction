@@ -1,6 +1,6 @@
 ﻿symbol,model,MAPE,RMSE
-شفن,Deep Learning with Grid Search,0.03596829475193557,10944.85683134018
-بفجر,Deep Learning with Grid Search,0.0372750524348547,2507.626125038354
-غالبر,Deep Learning with Grid Search,0.15303364842834785,3206.995506294952
-وآذر,Deep Learning with Grid Search,0.011059319194658438,2308.8532939058805
-دپارس,Deep Learning with Grid Search,0.03193698618122744,5866.753214396761
+شفن,Deep Learning with Grid Search,0.014015254708956962,4296.099936719439
+بفجر,Deep Learning with Grid Search,0.019910982940056072,1690.0758312717012
+غالبر,Deep Learning with Grid Search,0.0026483411954231627,50.84279493346801
+وآذر,Deep Learning with Grid Search,0.04563797824911127,8556.507486473334
+دپارس,Deep Learning with Grid Search,0.0015705032666531867,197.95350230358335

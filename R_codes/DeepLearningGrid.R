@@ -49,7 +49,7 @@ pred.df <- data.frame(matrix(nrow=0, ncol=length(pred.cols)))
 names(pred.df) <- pred.cols
 
 valid.size <- 20
-train.size <- valid.size * 3
+train.size <- valid.size * 10
 
 my.model <- "Deep Learning with Grid Search"
 #----
@@ -110,7 +110,7 @@ for (sym.i in 1:length(stock.symbols)) {
   
   search_criteria_dl <- list(strategy = "RandomDiscrete", 
                              max_models = 100,
-                             max_runtime_secs = 60 * 15,
+                             max_runtime_secs = 60 * 20,
                              stopping_tolerance = 0.001,
                              stopping_rounds = 15,
                              stopping_metric = "RMSE",

@@ -1,0 +1,6 @@
+﻿symbol,model,MAPE,RMSE
+شفن,Random Forest with Grid Search,0.07008883204742511,20131.47176172707
+بفجر,Random Forest with Grid Search,0.09272115779978578,2720.658143908421
+غالبر,Random Forest with Grid Search,0.18073478939249077,2903.5399953300853
+وآذر,Random Forest with Grid Search,0.02492319743039166,4341.604579371191
+دپارس,Random Forest with Grid Search,0.03584100863977507,3925.374763758422

@@ -34,6 +34,7 @@ library(readr)
 library(dplyr)
 library(lubridate)
 # h2o config
+library(h2o)
 
 stock.symbols <- random.selected.symbols
 trades <- sufficient_trades_ts_df
@@ -51,10 +52,9 @@ names(pred.df) <- pred.cols
 valid.size <- 20
 train.size <- valid.size * 3
 
-my.model <- "Random Forest with Grid Search"
+my.model <- "Deep Learning"
 #----
 for (sym.i in 1:length(stock.symbols)) {
-  library(h2o)
   h2o.init(max_mem_size = "4G")
   
   stock.sym <- stock.symbols[[sym.i]]
@@ -90,36 +90,29 @@ for (sym.i in 1:length(stock.symbols)) {
   y <- "y"
   
   #----
-  # Random Forest with grid search
-  hyper_params_rf <- list(mtries = c(2, 3, 4),
-                          sample_rate = c(0.632, 0.8, 0.95),
-                          col_sample_rate_per_tree = c(0.5, 0.9, 1.0),
-                          max_depth = c(seq(1, 30, 3)),
-                          min_rows = c(1, 2, 5, 10))
+  # Deep Learning 
+  # activation = Tanh, Tanh with dropout, Rectifier, Rectifier with dropout, 
+  # Maxout, Maxout with dropout, default = Rectifier
+  # ditribution = poisson, laplace, tweedie, gaussian, huber, gamma, quantile
+  # tweedie_power = 1.5,
+  dl_md <- h2o.deeplearning(x = x, y = y,
+              distribution = "gaussian",
+              activation = "Tanh",
+              epochs = 1000,
+              train_samples_per_iteration = -1,
+              reproducible = FALSE,
+              balance_classes = FALSE,
+              force_load_balance = FALSE,
+              seed = 2020,
+              score_training_samples = 0,
+              score_validation_samples = 0,
+              training_frame = train_h,
+              stopping_rounds = 0,
+              stopping_metric = "RMSE")
   
-  search_criteria_rf <- list(strategy = "RandomDiscrete",
-                             stopping_metric = "rmse",
-                             stopping_tolerance = 0.0001,
-                             stopping_rounds = 10,
-                             max_runtime_secs = 60 * 5)
+  print(h2o.performance(dl_md))
   
-  rf_grid <- h2o.grid(algorithm = "randomForest",
-                  search_criteria = search_criteria_rf,
-                  hyper_params = hyper_params_rf,
-                  x = x, y = y,
-                  training_frame = train_h,
-                  ntrees = 5000,
-                  grid_id = "rf_grid",
-                  seed = 1234)
-                  #nfolds = 3,
-  
-  rf2_grid_search <- h2o.getGrid(grid_id = "rf_grid",
-                                 sort_by = "rmse",
-                                 decreasing = FALSE)
-  
-  rf_grid_model <- h2o.getModel(rf2_grid_search@model_ids[[1]])
-  
-  test_h$yhat <- h2o.predict(rf_grid_model, test_h)
+  test_h$yhat <- h2o.predict(dl_md, test_h)
   
   symbol_list <- rep(stock.sym, valid.size)
   model_list <- rep(my.model, valid.size)
@@ -136,13 +129,13 @@ for (sym.i in 1:length(stock.symbols)) {
   pred.df <- rbind(pred.df, temp.pred.df)
   remove(temp.pred.df)
   
-  mape_rf_mean <- mean(mape.list[[y]])
-  rmse_rf_mean <- (sum((actual.price$y - pred.price$yhat)^2/valid.size))^(0.5)
+  mape_dl_mean <- mean(mape.list[[y]])
+  rmse_dl_mean <- (sum((actual.price$y - pred.price$yhat)^2/valid.size))^(0.5)
   
-  p <- c(stock.sym, mape_rf_mean, rmse_rf_mean)
+  p <- c(stock.sym, mape_dl_mean, rmse_dl_mean)
   print(p)
   
-  temp.bench.df <- data.frame(stock.sym, my.model, mape_rf_mean, rmse_rf_mean)
+  temp.bench.df <- data.frame(stock.sym, my.model, mape_dl_mean, rmse_dl_mean)
   colnames(temp.bench.df) <- bench.cols
   bench.df <- rbind(bench.df, temp.bench.df)
   remove(temp.bench.df)
@@ -152,5 +145,6 @@ for (sym.i in 1:length(stock.symbols)) {
   Sys.sleep(5)
 }
 
-write_excel_csv(bench.df, "../Data/ML_grid_RF_benchmark.csv")
-write_excel_csv(pred.df, "../Data/ML_grid_RF_predictions.csv")
+write_excel_csv(bench.df, "../Data/ML_DL_benchmark.csv")
+write_excel_csv(pred.df, "../Data/ML_DL_predictions.csv")
+

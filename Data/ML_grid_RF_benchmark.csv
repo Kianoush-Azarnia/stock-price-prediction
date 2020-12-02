@@ -1,0 +1,11 @@
+﻿symbol,model,MAPE,RMSE
+پاسا,Random Forest with Grid Search,0.04035298071932195,1223.4517048425205
+وخارزم,Random Forest with Grid Search,0.08932020941249207,1823.0453059713793
+غبهنوش,Random Forest with Grid Search,0.040400671972390334,3814.5365626780886
+غالبر,Random Forest with Grid Search,0.0700700677641995,1227.8407798872054
+سكرد,Random Forest with Grid Search,0.03807016345547148,557.1211854765772
+بفجر,Random Forest with Grid Search,0.09513459078226864,3031.3732869932755
+ملت,Random Forest with Grid Search,0.08691887504934916,1894.154690758155
+داسوهح,Random Forest with Grid Search,0.22021443975964408,1746.4867423969224
+دپارس,Random Forest with Grid Search,0.06395006956928447,7028.021864235668
+وآذر,Random Forest with Grid Search,0.03666087856902903,7851.1987636774775

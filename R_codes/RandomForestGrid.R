@@ -1,7 +1,7 @@
 #----
 # read csv, rename columns, change date data type to date
 sufficient_trades_ts_df = read.csv(
-  "../Data/sufficient_trades_time_series.csv", encoding = "UTF-8")
+  "../Data/sel_stocks_next_prices.csv", encoding = "UTF-8")
 
 names(sufficient_trades_ts_df)[ 
   names(sufficient_trades_ts_df) == "X.U.FEFF.persian_symbol"
@@ -12,7 +12,7 @@ names(sufficient_trades_ts_df)[
 ] <- "date"
 
 names(sufficient_trades_ts_df)[ 
-  names(sufficient_trades_ts_df) == "final_price"
+  names(sufficient_trades_ts_df) == "next_price"
 ] <- "y"
 
 colnames(sufficient_trades_ts_df)
@@ -21,12 +21,11 @@ sufficient_trades_ts_df$date = as.Date(sufficient_trades_ts_df$date)
 
 str(sufficient_trades_ts_df)
 
+selected.symbols <- regression.bench.df$X.U.FEFF.symbol
+
 # set seed for producing repeatable random results
 set.seed(123)
-
-random.selected.symbols <- sufficient.trades.symbols[
-  sample(nrow(sufficient.trades.symbols),5),]
-
+random.selected.symbols <- sample(selected.symbols, size = 10)
 random.selected.symbols
 
 #----
@@ -78,8 +77,9 @@ for (sym.i in 1:length(stock.symbols)) {
   
   mape.list <- rep(0, day.index)
   
-  train_df <- stock.df[(trade.num - day.index):(trade.num - valid.size),]
-  test_df <- stock.df[(trade.num - valid.size + 1):trade.num,]
+  shift <- 4
+  train_df <- stock.df[(0):(trade.num - valid.size - shift),]
+  test_df <- stock.df[(trade.num - valid.size + 1 - shift):(trade.num - shift),]
   
   #----
   # h2o train, test, prediction and benchmarks datasets
@@ -101,7 +101,7 @@ for (sym.i in 1:length(stock.symbols)) {
                              stopping_metric = "rmse",
                              stopping_tolerance = 0.0001,
                              stopping_rounds = 10,
-                             max_runtime_secs = 60 * 5)
+                             max_runtime_secs = 60 * 3)
   
   rf_grid <- h2o.grid(algorithm = "randomForest",
                   search_criteria = search_criteria_rf,

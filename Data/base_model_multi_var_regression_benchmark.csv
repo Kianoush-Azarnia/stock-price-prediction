@@ -1,0 +1,11 @@
+﻿symbol,model,MAPE,RMSE
+پاسا,Multi Variate Regression as Base Model,0.023148960308323842,762.9657092187352
+وخارزم,Multi Variate Regression as Base Model,0.05348472230145516,999.7768698035868
+غبهنوش,Multi Variate Regression as Base Model,0.03055823823284641,4034.393702393817
+غالبر,Multi Variate Regression as Base Model,0.03339596036228545,679.3230604600221
+سكرد,Multi Variate Regression as Base Model,0.026747847215070633,402.11952594422036
+بفجر,Multi Variate Regression as Base Model,0.04680993570764198,1612.9355666362042
+ملت,Multi Variate Regression as Base Model,0.04531728511118496,1008.6728865348094
+داسوهح,Multi Variate Regression as Base Model,0.2010885167257847,1542.162611123236
+دپارس,Multi Variate Regression as Base Model,0.01756908084818081,2464.4888660419083
+وآذر,Multi Variate Regression as Base Model,0.03171478910950069,6215.303597146792

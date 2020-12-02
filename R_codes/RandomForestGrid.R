@@ -101,7 +101,7 @@ for (sym.i in 1:length(stock.symbols)) {
                              stopping_metric = "rmse",
                              stopping_tolerance = 0.0001,
                              stopping_rounds = 10,
-                             max_runtime_secs = 60 * 3)
+                             max_runtime_secs = 60 * 5)
   
   rf_grid <- h2o.grid(algorithm = "randomForest",
                   search_criteria = search_criteria_rf,

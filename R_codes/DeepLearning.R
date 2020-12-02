@@ -1,7 +1,7 @@
 #----
 # read csv, rename columns, change date data type to date
 sel_stocks_df = read.csv(
-  "../Data/selected_stocks_with_indicators.csv", encoding = "UTF-8")
+  "../Data/sel_stocks_next_prices.csv", encoding = "UTF-8")
 
 names(sel_stocks_df)[ 
   names(sel_stocks_df) == "X.U.FEFF.persian_symbol"
@@ -12,7 +12,7 @@ names(sel_stocks_df)[
 ] <- "date"
 
 names(sel_stocks_df)[ 
-  names(sel_stocks_df) == "next_change"
+  names(sel_stocks_df) == "next_price"
 ] <- "y"
 
 colnames(sel_stocks_df)
@@ -29,7 +29,7 @@ selected.symbols <- regression.bench.df$X.U.FEFF.symbol
 
 # set seed for producing repeatable random results
 set.seed(123)
-random.selected.symbols <- sample(selected.symbols, size = 1)
+random.selected.symbols <- sample(selected.symbols, size = 10)
 random.selected.symbols
 
 #----
@@ -85,8 +85,9 @@ for (sym.i in 1:length(stock.symbols)) {
   
   mape.list <- rep(0, day.index)
   
-  train_df <- stock.df[(0):(trade.num - valid.size),]
-  test_df <- stock.df[(trade.num - valid.size + 1):trade.num,]
+  shift <- 4
+  train_df <- stock.df[(0):(trade.num - valid.size - shift),]
+  test_df <- stock.df[(trade.num - valid.size + 1 - shift):(trade.num - shift),]
   
   #----
   # h2o train, test, prediction and benchmarks datasets
@@ -95,7 +96,7 @@ for (sym.i in 1:length(stock.symbols)) {
   
   x <- colnames(train_df)
   y <- "y"
-  print(train_df$y)
+  
   #----
   # Deep Learning 
   # activation = Tanh, Tanh with dropout, Rectifier, Rectifier with dropout, 
@@ -116,7 +117,7 @@ for (sym.i in 1:length(stock.symbols)) {
                             training_frame = train_h,
                             stopping_rounds = 0,
                             stopping_metric = "RMSE",
-                            max_runtime_secs = 60 * 0.1)
+                            max_runtime_secs = 60 * 5)
   
   print(h2o.performance(dl_md))
   

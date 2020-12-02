@@ -1,32 +1,35 @@
 #----
 # read csv, rename columns, change date data type to date
-sufficient_trades_ts_df = read.csv(
-  "../Data/sufficient_trades_time_series.csv", encoding = "UTF-8")
+sel_stocks_df = read.csv(
+  "../Data/selected_stocks_with_indicators.csv", encoding = "UTF-8")
 
-names(sufficient_trades_ts_df)[ 
-  names(sufficient_trades_ts_df) == "X.U.FEFF.persian_symbol"
+names(sel_stocks_df)[ 
+  names(sel_stocks_df) == "X.U.FEFF.persian_symbol"
 ] <- "persian_symbol"
 
-names(sufficient_trades_ts_df)[ 
-  names(sufficient_trades_ts_df) == "pd_trade_date"
+names(sel_stocks_df)[ 
+  names(sel_stocks_df) == "pd_trade_date"
 ] <- "date"
 
-names(sufficient_trades_ts_df)[ 
-  names(sufficient_trades_ts_df) == "final_price"
+names(sel_stocks_df)[ 
+  names(sel_stocks_df) == "next_change"
 ] <- "y"
 
-colnames(sufficient_trades_ts_df)
+colnames(sel_stocks_df)
 
-sufficient_trades_ts_df$date = as.Date(sufficient_trades_ts_df$date)
+sel_stocks_df$date = as.Date(sel_stocks_df$date)
 
-str(sufficient_trades_ts_df)
+str(sel_stocks_df)
+
+regression.bench.df <- read.csv(
+  "../Data/regression_benchmark.csv", encoding = "UTF-8")
+#sufficient.trades.symbols[sample(nrow(sufficient.trades.symbols),5),]
+
+selected.symbols <- regression.bench.df$X.U.FEFF.symbol
 
 # set seed for producing repeatable random results
 set.seed(123)
-
-random.selected.symbols <- sufficient.trades.symbols[
-  sample(nrow(sufficient.trades.symbols),5),]
-
+random.selected.symbols <- sample(selected.symbols, size = 1)
 random.selected.symbols
 
 #----
@@ -37,9 +40,11 @@ library(lubridate)
 library(h2o)
 
 stock.symbols <- random.selected.symbols
-trades <- sufficient_trades_ts_df
-bench.cols <- c("symbol", "model", "MAPE", "RMSE")
 
+# trades <- select(df, -one_of(excluded_vars))
+# excluded_vars <- c("Fuckkk", "market_value", "Chaikin_MF", "persian_symbol", "change")
+
+bench.cols <- c("symbol", "model", "MAPE", "RMSE")
 bench.df <-  data.frame(matrix(nrow=0, ncol=length(bench.cols)))
 names(bench.df) <- bench.cols
 
@@ -65,20 +70,22 @@ for (sym.i in 1:length(stock.symbols)) {
   temp.bench.df <- data.frame(matrix(nrow=1, ncol=length(bench.cols)))
   
   # stock.df is symbol's df
-  stock.df <- sufficient_trades_ts_df[
-    sufficient_trades_ts_df$persian_symbol==stock.sym,]
+  stock.df <- sel_stocks_df[
+    sel_stocks_df$persian_symbol==stock.sym,]
   
   trade.num <- nrow(stock.df)
   stock.df$index <- 1:trade.num
   
   stock.df$trades_number_inverse <- stock.df$number_of_trades^(-1)
   
+  # stock.df <- select(df, -one_of(excluded_vars))
+  
   print(trade.num)
   day.index <- train.size + valid.size
   
   mape.list <- rep(0, day.index)
   
-  train_df <- stock.df[(trade.num - day.index):(trade.num - valid.size),]
+  train_df <- stock.df[(0):(trade.num - valid.size),]
   test_df <- stock.df[(trade.num - valid.size + 1):trade.num,]
   
   #----
@@ -86,9 +93,9 @@ for (sym.i in 1:length(stock.symbols)) {
   train_h <- as.h2o(train_df)
   test_h <- as.h2o(test_df)
   
-  x <- colnames(stock.df)
+  x <- colnames(train_df)
   y <- "y"
-  
+  print(train_df$y)
   #----
   # Deep Learning 
   # activation = Tanh, Tanh with dropout, Rectifier, Rectifier with dropout, 
@@ -108,7 +115,8 @@ for (sym.i in 1:length(stock.symbols)) {
                             score_validation_samples = 0,
                             training_frame = train_h,
                             stopping_rounds = 0,
-                            stopping_metric = "RMSE")
+                            stopping_metric = "RMSE",
+                            max_runtime_secs = 60 * 0.1)
   
   print(h2o.performance(dl_md))
   
@@ -121,6 +129,15 @@ for (sym.i in 1:length(stock.symbols)) {
   pred.price <- as.data.frame(test_h$yhat)
   mape.list <- as.data.frame(abs(actual.price - pred.price) / 
                                (actual.price + 0.000001))
+  
+  # print("-------------------------------------------")
+  # print(length(symbol_list))
+  # print(length(model_list))
+  # print(length(tdate))
+  # print((actual.price))
+  # print((pred.price))
+  # print(length(mape.list))
+  # print("-------------------------------------------")
   
   temp.pred.df <- data.frame(
     symbol_list, model_list, tdate, actual.price, pred.price, mape.list

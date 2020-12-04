@@ -239,38 +239,41 @@ plot_ly(x = final_forecast$index, y = final_forecast$y,
          xaxis = list(title = "Day"))
 
 #----
-# deep learning
+#----
 # read csv, rename columns, change date data type to date
-sufficient_trades_ts_df = read.csv(
-  "../Data/sufficient_trades_time_series.csv", encoding = "UTF-8")
+sel_stocks_df = read.csv(
+  "../Data/sel_exp_next_df.csv", encoding = "UTF-8")
 
-names(sufficient_trades_ts_df)[ 
-  names(sufficient_trades_ts_df) == "X.U.FEFF.persian_symbol"
-] <- "persian_symbol"
+names(sel_stocks_df)[ 
+  names(sel_stocks_df) == "X.U.FEFF.symbol"
+] <- "symbol"
 
-names(sufficient_trades_ts_df)[ 
-  names(sufficient_trades_ts_df) == "pd_trade_date"
+names(sel_stocks_df)[ 
+  names(sel_stocks_df) == "trade_date"
 ] <- "date"
 
-names(sufficient_trades_ts_df)[ 
-  names(sufficient_trades_ts_df) == "final_price"
+names(sel_stocks_df)[ 
+  names(sel_stocks_df) == "next_price"
 ] <- "y"
 
-colnames(sufficient_trades_ts_df)
+colnames(sel_stocks_df)
 
-sufficient_trades_ts_df$date = as.Date(sufficient_trades_ts_df$date)
+sel_stocks_df$date = as.Date(sel_stocks_df$date)
 
-str(sufficient_trades_ts_df)
+str(sel_stocks_df)
+
+regression.bench.df <- read.csv(
+  "../Data/regression_benchmark.csv", encoding = "UTF-8")
+#sufficient.trades.symbols[sample(nrow(sufficient.trades.symbols),5),]
+
+selected.symbols <- regression.bench.df$X.U.FEFF.symbol
 
 # set seed for producing repeatable random results
 set.seed(123)
-
-random.selected.symbols <- sufficient.trades.symbols[
-  sample(nrow(sufficient.trades.symbols),5),]
-
+random.selected.symbols <- sample(selected.symbols, size = 10)
 random.selected.symbols
 
-# lib
+#----
 library(readr)
 library(dplyr)
 library(lubridate)
@@ -278,9 +281,11 @@ library(lubridate)
 library(h2o)
 
 stock.symbols <- random.selected.symbols
-trades <- sufficient_trades_ts_df
-bench.cols <- c("symbol", "model", "MAPE", "RMSE")
 
+# trades <- select(df, -one_of(excluded_vars))
+# excluded_vars <- c("Fuckkk", "market_value", "Chaikin_MF", "persian_symbol", "change")
+
+bench.cols <- c("symbol", "model", "MAPE", "RMSE")
 bench.df <-  data.frame(matrix(nrow=0, ncol=length(bench.cols)))
 names(bench.df) <- bench.cols
 
@@ -290,12 +295,11 @@ pred.df <- data.frame(matrix(nrow=0, ncol=length(pred.cols)))
 
 names(pred.df) <- pred.cols
 
-valid.size <- 1
+valid.size <- 20
 train.size <- valid.size * 10
 
 my.model <- "Deep Learning"
-
-# for
+#----
 for (sym.i in 1:length(stock.symbols)) {
   h2o.init(max_mem_size = "4G")
   
@@ -307,29 +311,31 @@ for (sym.i in 1:length(stock.symbols)) {
   temp.bench.df <- data.frame(matrix(nrow=1, ncol=length(bench.cols)))
   
   # stock.df is symbol's df
-  stock.df <- sufficient_trades_ts_df[
-    sufficient_trades_ts_df$persian_symbol==stock.sym,]
+  stock.df <- sel_stocks_df[
+    sel_stocks_df$symbol==stock.sym,]
   
   trade.num <- nrow(stock.df)
+  # print(nrow(stock.df))
   stock.df$index <- 1:trade.num
-  
   stock.df$trades_number_inverse <- stock.df$number_of_trades^(-1)
+  
+  # stock.df <- select(df, -one_of(excluded_vars))
   
   print(trade.num)
   day.index <- train.size + valid.size
   
   mape.list <- rep(0, day.index)
   
-  train_df <- stock.df[(trade.num - day.index):(trade.num - valid.size),]
-  test_df <- stock.df[(trade.num - valid.size + 1):trade.num,]
+  shift <- 4
+  train_df <- stock.df[(0):(trade.num - valid.size - shift),]
+  test_df <- stock.df[(trade.num - valid.size + 1 - shift):(trade.num - shift),]
   
   #----
   # h2o train, test, prediction and benchmarks datasets
   train_h <- as.h2o(train_df)
   test_h <- as.h2o(test_df)
-  estimated_h <- as.h2o(tail(train_df, valid.size))
   
-  x <- colnames(stock.df)
+  x <- colnames(train_df)
   y <- "y"
   
   #----
@@ -351,11 +357,12 @@ for (sym.i in 1:length(stock.symbols)) {
                             score_validation_samples = 0,
                             training_frame = train_h,
                             stopping_rounds = 0,
-                            stopping_metric = "RMSE")
+                            stopping_metric = "RMSE",
+                            max_runtime_secs = 60 * 5)
   
   print(h2o.performance(dl_md))
   
-  test_h$yhat <- h2o.predict(dl_md, estimated_h)
+  test_h$yhat <- h2o.predict(dl_md, test_h)
   
   symbol_list <- rep(stock.sym, valid.size)
   model_list <- rep(my.model, valid.size)
@@ -364,6 +371,15 @@ for (sym.i in 1:length(stock.symbols)) {
   pred.price <- as.data.frame(test_h$yhat)
   mape.list <- as.data.frame(abs(actual.price - pred.price) / 
                                (actual.price + 0.000001))
+  
+  # print("-------------------------------------------")
+  # print(length(symbol_list))
+  # print(length(model_list))
+  # print(length(tdate))
+  # print((actual.price))
+  # print((pred.price))
+  # print(length(mape.list))
+  # print("-------------------------------------------")
   
   temp.pred.df <- data.frame(
     symbol_list, model_list, tdate, actual.price, pred.price, mape.list

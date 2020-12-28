@@ -1,5 +1,5 @@
 #----
-# read csv, rename columns, change trade_date data type to date
+# read csv, rename columns, change date data type to date
 sufficient_trades_ts_df = read.csv(
   "../Data/sufficient_trades_time_series.csv", encoding = "UTF-8")
 
@@ -777,3 +777,139 @@ test_h <- as.h2o(test_df)
 forecast_h <- as.h2o(forecast_df)
 x <- c("date", "lag1" ,"trend", "trend_sqr") 
 y <- "y"
+#----
+# ets function test for shiny
+# read csv, rename columns, change trade_date data type to date
+sufficient.trades.ts.df = read.csv(
+  "../Data/sufficient_trades_time_series.csv", encoding = "UTF-8")
+
+names(sufficient.trades.ts.df)[ 
+  names(sufficient.trades.ts.df) == "X.U.FEFF.persian_symbol"
+] <- "persian_symbol"
+
+names(sufficient.trades.ts.df)[ 
+  names(sufficient.trades.ts.df) == "pd_trade_date"
+] <- "trade_date"
+
+colnames(sufficient.trades.ts.df)
+
+sufficient.trades.ts.df$trade_date = as.Date(sufficient.trades.ts.df$trade_date)
+
+str(sufficient.trades.ts.df)
+
+# Persian symbols of stocks with sufficient trades - read csv
+sufficient.trades.symbols <- read.csv(
+  "../Data/symbols_with_sufficient_trades.csv", encoding = "UTF-8")
+
+# set seed for producing repeatable random results
+set.seed(123)
+# pick 20 random stock symbols without replacement (default)
+random.selected.symbols <- sufficient.trades.symbols[
+  sample(nrow(sufficient.trades.symbols),20),]
+
+random.selected.symbols
+
+#----
+library("forecast")
+library(dplyr)
+
+# 1st letter = error type, 2nd letter = trend type, 3rd letter = season type
+# In all cases: "N"=none, "A"=additive and "M"=multiplicative
+# IMPORTANT : "AMN" & "AMZ" <- Forbidden model combination
+ets.models <- c("AAN", "ANN", "MAN", "MNN", "MMN")
+
+# smoothing benchmark function without paramaeters: 
+# (parameters.values, validation.sizes)
+do_ets <- function(model = "MNN", stock.symbol, trades) {
+  
+  # , "alpha", "beta", "gamma", "valid.size",
+  
+  rows.number <- length(model) * length(stock.symbol) 
+  # * length(parameters.values) * length(validation.sizes)
+  
+  pred.cols <- c("symbol", "date", "actual_final_price", "model", 
+                 "predicted_price", "ME", "MAE", "RMSE", "MPE", "MAPE", "MASE")
+  pred.df <- data.frame(matrix(nrow=0, ncol=length(pred.cols)))
+  names(pred.df) <- pred.cols
+    
+  stock.df <- trades %>% filter(symbol == stock.symbol) %>% select("date", "final_price")
+  
+  stock.ts <- ts(stock.df$final_price, frequency = 1)
+  
+  len <- length(stock.ts)
+  
+  model
+  
+  # for (para.row in 1:nrow(parameters.values)) {
+  #   sel.alpha <- parameters.values[[para.row, "a"]]
+  #   sel.beta <- parameters.values[[para.row, "b"]]
+  #   sel.gamma <- parameters.values[para.row, "c"]
+  
+  # for (valid.i in 1:length(validation.sizes)) {
+  # valid.size <- validation.sizes[[valid.i]]
+  valid.size <- 1
+  train.size <- valid.size * 9
+  
+  #rep(x, y): replicate x, y times
+  ets.me.list <- rep(0, len - train.size - valid.size + 1)
+  ets.mae.list <- rep(0, len - train.size - valid.size + 1) 
+  ets.rmse.list <- rep(0, len - train.size - valid.size + 1)
+  ets.mpe.list <- rep(0, len - train.size - valid.size + 1)
+  ets.mape.list <- rep(0, len - train.size - valid.size + 1)
+  ets.mase.list <- rep(0, len - train.size - valid.size + 1)
+  
+  for(j in 1 : (len - train.size - valid.size)) {
+    day.index <- j + train.size + valid.size
+    
+    train.ts <- window(stock.ts, start = j , end = j + train.size)
+    
+    valid.ts <- window(stock.ts, start = j + train.size + 1, 
+                       end = day.index)
+    
+    ets.fit <- ets(
+      train.ts, model = model
+    )
+    # , alpha = sel.alpha, beta = sel.beta
+    # gamma = sel.gamma, restrict = FALSE, 
+    # allow.multiplicative.trend = TRUE,
+    
+    ets.pred <- forecast(ets.fit, h = valid.size)
+    
+    ets.me.list[[j]] <- accuracy(ets.pred, valid.ts)[2,"ME"]
+    ets.mae.list[[j]] <- accuracy(ets.pred, valid.ts)[2,"MAE"]
+    ets.rmse.list[[j]] <- accuracy(ets.pred, valid.ts)[2,"RMSE"]
+    ets.mpe.list[[j]] <- accuracy(ets.pred, valid.ts)[2,"MPE"]
+    ets.mape.list[[j]] <- accuracy(ets.pred, valid.ts)[2,"MAPE"]
+    ets.mase.list[[j]] <- accuracy(ets.pred, valid.ts)[2,"MASE"]
+    
+    if(j%%40==0){print(j)}
+    
+    temp.pred.df <- data.frame(matrix(
+      nrow=1, ncol=length(pred.cols)))
+    
+    tdate <- stock.df[day.index,]$date
+    actual.price <- valid.ts[[1]]
+    pred.price <- ets.pred$mean[[1]]
+    #browser()
+    temp.pred.df <- data.frame(
+      stock.symbol, tdate, actual.price, model, pred.price, 
+      ets.me.list[[j]], ets.mae.list[[j]], ets.rmse.list[[j]],
+      ets.mpe.list[[j]], ets.mape.list[[j]], ets.mase.list[[j]]
+    )
+    
+    colnames(temp.pred.df) <- pred.cols
+    
+    pred.df <- rbind(pred.df, temp.pred.df)
+  }
+  
+  p <- c(model, stock.symbol, mean(ets.mape.list), mean(ets.rmse.list))
+  print(p)
+      
+
+  print("__________Finished__________")
+  pred.df
+}
+
+# calling ets benchmark function
+test_ets_df <- do_ets(stock.symbol = "شفن", trades = test_df)
+

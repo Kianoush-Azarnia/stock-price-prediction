@@ -1,4 +1,6 @@
 library("shiny")
+library("shinyjs")
+library("shinydashboard")
 library("dplyr")
 library("plotly")
 library("forecast")
@@ -39,6 +41,7 @@ models <- list(
 
 #----
 ui <- fluidPage(
+    useShinyjs(),
    sidebarLayout(
         sidebarPanel(
             selectizeInput(
@@ -71,7 +74,8 @@ ui <- fluidPage(
             
             
         ), mainPanel(
-            plotlyOutput("stock_plot"),
+            plotlyOutput("stock_plot1"),
+            plotlyOutput("stock_plot2"),
             tableOutput("test1")
         )
    ) 
@@ -96,8 +100,12 @@ server <- function(input, output, session) {
         )
     })
     
-    output$stock_plot <- renderPlotly({
-        stock_df() %>% plot_ly(x = ~date, y = ~final_price, mode = "lines")
+    observeEvent(input$symbol_in != "",{
+        shinyjs::show(id = "stock_plot1")
+        shinyjs::hide(id = "stock_plot2")
+        output$stock_plot1 <- renderPlotly({
+            stock_df() %>% plot_ly(x = ~date, y = ~final_price, mode = "lines")
+        })
     })
     
     do_predict <- reactive({
@@ -108,11 +116,8 @@ server <- function(input, output, session) {
         switch(
             input$model_in, 
             "gbm" = "gbm$",
-            "ets" = list(
-                "plot" = (do_ets(stock.symbol = input$symbol_in, trades = stock_df(),
-                    window.size = input$windowSize))[,c(
-                        "date", "actual_final_price", "predicted_price")]
-            ),
+            "ets" = (do_ets(stock.symbol = input$symbol_in, trades = stock_df(),
+                    window.size = input$windowSize)),
             "dl" = "dl$",
             "rf" = "rf$",
             "reg" = "reg$",
@@ -122,17 +127,22 @@ server <- function(input, output, session) {
     })
     
     plot_with_prediction <- function() {
-        df <- do_predict()$plot
+        df <- do_predict()$predictions
         p <- plot_ly(df, x = ~date, y = ~actual_final_price, 
                      type = "scatter", name = "actual price")
         p %>% add_trace(x = df$date, y = df$predicted_price, 
                         mode = "lines", name = "predicted price")
     }
     
-    output$stock_plot <- renderPlotly({
-        input$predictButton
-        isolate(plot_with_prediction())
-    })
+    observeEvent(
+        input$predictButton, {
+            shinyjs::hide(id = "stock_plot1")
+            shinyjs::show(id = "stock_plot2")
+            output$stock_plot2 <- renderPlotly({
+                plot_with_prediction()
+            })
+        }
+    )
     
 }
 
@@ -144,12 +154,13 @@ do_ets <- function(stock.symbol, trades, window.size) {
     model = "MNN"
     rows.number <- length(model) * length(stock.symbol) 
     
-    pred.cols <- c("symbol", "date", "actual_final_price", "model", 
+    pred.cols <- c("symbol", "date", "actual_final_price", "change", "model", 
                    "predicted_price", "ME", "MAE", "RMSE", "MPE", "MAPE", "MASE")
     pred.df <- data.frame(matrix(nrow=0, ncol=length(pred.cols)))
     names(pred.df) <- pred.cols
     
-    stock.df <- trades %>% filter(symbol == stock.symbol) %>% select("date", "final_price")
+    stock.df <- trades %>% filter(symbol == stock.symbol) %>% select(
+        "date", "final_price", "change")
     
     stock.ts <- ts(stock.df$final_price, frequency = 1)
     
@@ -196,8 +207,10 @@ do_ets <- function(stock.symbol, trades, window.size) {
         actual.price <- valid.ts[[1]]
         pred.price <- ets.pred$mean[[1]]
         
+        change <- stock.df[day.index,]$change
+        
         temp.pred.df <- data.frame(
-            stock.symbol, tdate, actual.price, model, pred.price, 
+            stock.symbol, tdate, actual.price, change, model, pred.price, 
             ets.me.list[[j]], ets.mae.list[[j]], ets.rmse.list[[j]],
             ets.mpe.list[[j]], ets.mape.list[[j]], ets.mase.list[[j]]
         )
@@ -210,11 +223,74 @@ do_ets <- function(stock.symbol, trades, window.size) {
     p <- c(model, stock.symbol, mean(ets.mape.list), mean(ets.rmse.list))
     print(p)
     
-    
-    print("__________Finished__________")
     pred.df[,"date"] <- as.character(pred.df[,"date"])
-    pred.df
+    
+    profit <- sign(
+        (pred.df$predicted_price - shift_vector(pred.df$actual_final_price, 1))* 
+            pred.df$change
+    )
+    
+    result <- list(
+        "df" = pred.df,
+        
+        "predictions" = pred.df[,c("date", "actual_final_price", 
+                                   "predicted_price")],
+        
+        "residuals" = pred.df[,c("date", "ME")],
+        "profits" = profit,
+        "profit_percent" = round(sum(profit[profit != -1]/length(profit)), 4)
+        
+    )
+    print("__________Finished__________")
+    
+    return (result)
+}
+
+#----
+# shift vector
+shift_vector <- function(x, n, up = FALSE){
+    if (up) {
+        res <- c(x[-(seq(n))], rep(0, n))
+    } else {
+        res <- c(rep(0, n), x[-length(x):(-length(x)+n-1)])    
+    }
+    return (res)
 }
 
 
-
+#----
+# dumb price direction move prediction
+dumb_price_move_prediction <- function(df, stock.symbol){
+    stock.df <- df %>% filter(symbol == stock.symbol) %>% select(
+        "symbol","date", "final_price", "change")
+    rows_num <- nrow(stock.df)
+    
+    pred.cols <- c("symbol", "date", "final_price", "change", "dumb_direct", 
+                   "profit")
+    
+    pred.df <- data.frame(matrix(nrow=rows_num, ncol=length(pred.cols)))
+    
+    names(pred.df) <- pred.cols
+    
+    possible_profits <- c(1, -1)
+    
+    pred.df$symbol <- stock.df$symbol
+    pred.df$date <- stock.df$date
+    pred.df$final_price <- stock.df$final_price
+    pred.df$change <- stock.df$change
+    
+    pred.df$dumb_direct <- sample(possible_profits, rows_num, TRUE)
+    
+    profit <- sign(
+        pred.df$dumb_direct*pred.df$change
+    )
+    
+    result <- list(
+        "df" = pred.df,
+        
+        "profits" = profit,
+        
+        "profit_percent" = round(sum(profit[profit != -1]/length(profit)), 4)
+    )
+    return(result)
+}

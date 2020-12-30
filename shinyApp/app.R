@@ -26,7 +26,8 @@ names(trade_df)[
 trade_df$date <- as.Date(trade_df$date)
 
 # unique symbols
-unique_symbols <- select(trade_df, symbol) %>% distinct()
+unique_symbols <- trade_df %>% count(symbol) %>% filter(n >= 30) %>% 
+    select(symbol) %>% distinct()
 
 # define start date and end date variables:
 start_date <- (trade_df %>% select(date) %>% slice(which.min(date)))$date
@@ -72,8 +73,9 @@ ui <- fluidPage(
             
             actionButton("predictButton", "Predict"),
             
-            
-        ), mainPanel(
+            tableOutput("model_error")
+        ), 
+        mainPanel(
             fluidRow(
                 plotlyOutput("symbol_plot"),
                 plotlyOutput("predict_plot"),
@@ -113,17 +115,23 @@ server <- function(input, output, session) {
         shinyjs::hide(id = "predict_plot")
         shinyjs::hide(id = "residual_plot", anim = TRUE)
         shinyjs::hide(id = "profit_plot", anim = TRUE)
-        shinyjs::show(id = "symbol_plot")
+        shinyjs::hide(id = "model_error")
+        
         output$symbol_plot <- renderPlotly({
             stock_df() %>% plot_ly(x = ~date, y = ~final_price, mode = "lines")
         })
+        
+        shinyjs::show(id = "symbol_plot")
     })
     
-    do_predict <- reactive({
+    validate_before_plot <- function() {
         validate(need(input$model_in != "", "Please choose a model"))
         
         validate(need(nrow(stock_df()) > 2 * input$windowSize, 
                       "Insufficient data or too-large window size"))
+    }
+    
+    do_predict <- reactive({
         switch(
             input$model_in, 
             "gbm" = "gbm$",
@@ -138,6 +146,7 @@ server <- function(input, output, session) {
     })
     
     plot_prediction <- function(df) {
+        validate_before_plot()
         m <- df$predictions
         p <- plot_ly(m, x = ~date, y = ~actual_final_price, 
                      type = "scatter", name = "actual price")
@@ -146,36 +155,47 @@ server <- function(input, output, session) {
     }
     
     plot_residual <- function(df) {
+        validate_before_plot()
         m <- df$residuals
-        p <- plot_ly(m, x = ~date, y = ~ME, color = I("red"), 
+        p <- plot_ly(m, x = ~date, y = ~ME, color = I("brown"), 
                      type = "scatter", name = "residuals")
-        p %>% add_trace(x = m$date, y = m$ME, 
-                        mode = "lines", name = " ")
+        return(p)
     }
     
     plot_profit <- function(df) {
+        validate_before_plot()
         m <- df$profits
         p <- plot_ly(m, x = ~profit, y = ~sum, type = "bar", 
-                     name = "profit")
-        p
+                     color = ~profit=="Right", colors = ~color)
+        return(p)
     }
     
     observeEvent(
         input$predictButton, {
             shinyjs::hide(id = "symbol_plot")
-            shinyjs::show(id = "predict_plot")
-            shinyjs::show(id = "residual_plot", anim = TRUE)
-            shinyjs::show(id = "profit_plot", anim = TRUE)
-            predict_result <- do_predict() 
+
+            predict_result <- do_predict()
+            
             output$predict_plot <- renderPlotly({
                 plot_prediction(predict_result)
             })
+            
             output$residual_plot <- renderPlotly({
                 plot_residual(predict_result)
             })
+            
             output$profit_plot <- renderPlotly({
                 plot_profit(predict_result)
             })
+            
+            output$model_error <- renderTable({
+                predict_result$error_parameters
+            })
+            
+            shinyjs::show(id = "predict_plot")
+            shinyjs::show(id = "residual_plot", anim = TRUE, animType = "fade")
+            shinyjs::show(id = "profit_plot", anim = TRUE, animType = "fade")
+            shinyjs::show(id = "model_error") 
         }
     )
     
@@ -255,7 +275,8 @@ do_ets <- function(stock.symbol, trades, window.size) {
         pred.df <- rbind(pred.df, temp.pred.df)
     }
     
-    p <- c(model, stock.symbol, mean(ets.mape.list), mean(ets.rmse.list))
+    p <- list("model" = model, "sym" = stock.symbol, 
+              "mape" = mean(ets.mape.list), "rmse" = mean(ets.rmse.list))
     print(p)
     
     pred.df[,"date"] <- as.character(pred.df[,"date"])
@@ -268,17 +289,19 @@ do_ets <- function(stock.symbol, trades, window.size) {
     result <- list(
         "df" = pred.df,
         
+        "error_parameters" = data.frame("mape" = p$mape, "rmse" = p$rmse),
+        
         "predictions" = pred.df[,c("date", "actual_final_price", 
                                    "predicted_price")],
         
         "residuals" = pred.df[,c("date", "ME")],
         
         "profits" = data.frame(
-            "profit" = c(-1,0,1), 
+            "profit" = c("Wrong", "Right"), 
+            "color" = c("red", "green"),
             "sum" = c(
-                sum(profit[profit == -1]),
-                sum(profit[profit == 0]),
-                sum(profit[profit == 1])
+                abs(sum(profit[profit == -1])),
+                sum(profit[profit != -1])
             )
         ),
         

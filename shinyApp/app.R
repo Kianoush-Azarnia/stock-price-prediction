@@ -74,9 +74,18 @@ ui <- fluidPage(
             
             
         ), mainPanel(
-            plotlyOutput("stock_plot1"),
-            plotlyOutput("stock_plot2"),
-            tableOutput("test1")
+            fluidRow(
+                plotlyOutput("symbol_plot"),
+                plotlyOutput("predict_plot"),
+            ),
+            fluidRow(
+                column(
+                    6, plotlyOutput("residual_plot")
+                ),
+                column(
+                    6, plotlyOutput("profit_plot")
+                ),
+            )
         )
    ) 
 )
@@ -101,9 +110,11 @@ server <- function(input, output, session) {
     })
     
     observeEvent(input$symbol_in != "",{
-        shinyjs::show(id = "stock_plot1")
-        shinyjs::hide(id = "stock_plot2")
-        output$stock_plot1 <- renderPlotly({
+        shinyjs::hide(id = "predict_plot")
+        shinyjs::hide(id = "residual_plot", anim = TRUE)
+        shinyjs::hide(id = "profit_plot", anim = TRUE)
+        shinyjs::show(id = "symbol_plot")
+        output$symbol_plot <- renderPlotly({
             stock_df() %>% plot_ly(x = ~date, y = ~final_price, mode = "lines")
         })
     })
@@ -126,20 +137,44 @@ server <- function(input, output, session) {
         )
     })
     
-    plot_with_prediction <- function() {
-        df <- do_predict()$predictions
-        p <- plot_ly(df, x = ~date, y = ~actual_final_price, 
+    plot_prediction <- function(df) {
+        m <- df$predictions
+        p <- plot_ly(m, x = ~date, y = ~actual_final_price, 
                      type = "scatter", name = "actual price")
-        p %>% add_trace(x = df$date, y = df$predicted_price, 
+        p %>% add_trace(x = m$date, y = m$predicted_price, 
                         mode = "lines", name = "predicted price")
+    }
+    
+    plot_residual <- function(df) {
+        m <- df$residuals
+        p <- plot_ly(m, x = ~date, y = ~ME, color = I("red"), 
+                     type = "scatter", name = "residuals")
+        p %>% add_trace(x = m$date, y = m$ME, 
+                        mode = "lines", name = " ")
+    }
+    
+    plot_profit <- function(df) {
+        m <- df$profits
+        p <- plot_ly(m, x = ~profit, y = ~sum, type = "bar", 
+                     name = "profit")
+        p
     }
     
     observeEvent(
         input$predictButton, {
-            shinyjs::hide(id = "stock_plot1")
-            shinyjs::show(id = "stock_plot2")
-            output$stock_plot2 <- renderPlotly({
-                plot_with_prediction()
+            shinyjs::hide(id = "symbol_plot")
+            shinyjs::show(id = "predict_plot")
+            shinyjs::show(id = "residual_plot", anim = TRUE)
+            shinyjs::show(id = "profit_plot", anim = TRUE)
+            predict_result <- do_predict() 
+            output$predict_plot <- renderPlotly({
+                plot_prediction(predict_result)
+            })
+            output$residual_plot <- renderPlotly({
+                plot_residual(predict_result)
+            })
+            output$profit_plot <- renderPlotly({
+                plot_profit(predict_result)
             })
         }
     )
@@ -237,7 +272,16 @@ do_ets <- function(stock.symbol, trades, window.size) {
                                    "predicted_price")],
         
         "residuals" = pred.df[,c("date", "ME")],
-        "profits" = profit,
+        
+        "profits" = data.frame(
+            "profit" = c(-1,0,1), 
+            "sum" = c(
+                sum(profit[profit == -1]),
+                sum(profit[profit == 0]),
+                sum(profit[profit == 1])
+            )
+        ),
+        
         "profit_percent" = round(sum(profit[profit != -1]/length(profit)), 4)
         
     )

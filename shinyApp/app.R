@@ -35,61 +35,63 @@ end_date <- (trade_df %>% select(date) %>% slice(which.max(date)))$date
 
 models <- list(
     "gradient boost model" = "gbm", "exponential smoothing" = "ets", 
-    "deep learning" = "dl", "random forest" = "rf", "regression" = "reg", 
+    "deep learning" = "dl", "random forest" = "rf", "linear regression" = "reg", 
     "multi varient regression" = "multireg", "deep learning grid" = "dlgrid"
 )
 
 
 #----
-ui <- fluidPage(
-    useShinyjs(),
-   sidebarLayout(
-        sidebarPanel(
-            selectizeInput(
-                "symbol_in", "Choose a symbol", choices = unique_symbols,
-                options = list(
-                    placeholder = "stock symbols",
-                    onInitialize = I('function() { this.setValue(""); }')
-                )
-            ),
-            
-            dateRangeInput(
-                "dateRange_in", "Prediction range", 
-                start = start_date, end = end_date, 
-                min = start_date, max = end_date,
-                format = "yyyy-mm-dd", startview = "month", weekstart = 6,
-                language = "en", separator = " to ", width = NULL
-            ),
-            
-            selectizeInput(
-                "model_in", "Choose a model", choices = models,
-                options = list(
-                    placeholder = "predictor models",
-                    onInitialize = I('function() { this.setValue(""); }')
-                )
-            ),
-            numericInput("windowSize", "window size", value = 9, 
-                         min = 9, max = 30),
-            
-            actionButton("predictButton", "Predict"),
-            
-            tableOutput("model_error")
-        ), 
-        mainPanel(
-            fluidRow(
-                plotlyOutput("symbol_plot"),
-                plotlyOutput("predict_plot"),
-            ),
-            fluidRow(
-                column(
-                    6, plotlyOutput("residual_plot")
+ui <- navbarPage("Stock Price Prediction",
+    tabPanel("Time Series Forecasting",
+        useShinyjs(),
+        sidebarLayout(
+            sidebarPanel(
+                selectizeInput(
+                    "symbol_in", "Choose a symbol", choices = unique_symbols,
+                    options = list(
+                        placeholder = "stock symbols",
+                        onInitialize = I('function() { this.setValue(""); }')
+                    )
                 ),
-                column(
-                    6, plotlyOutput("profit_plot")
+                
+                dateRangeInput(
+                    "dateRange_in", "Prediction range", 
+                    start = start_date, end = end_date, 
+                    min = start_date, max = end_date,
+                    format = "yyyy-mm-dd", startview = "month", weekstart = 6,
+                    language = "en", separator = " to ", width = NULL
                 ),
+                
+                selectizeInput(
+                    "model_in", "Choose a model", choices = models,
+                    options = list(
+                        placeholder = "predictor models",
+                        onInitialize = I('function() { this.setValue(""); }')
+                    )
+                ),
+                numericInput("windowSize", "window size", value = 9, 
+                             min = 9, max = 30),
+                
+                actionButton("predictButton", "Predict"),
+                
+                tableOutput("model_error")
+            ), 
+            mainPanel(
+                fluidRow(
+                    plotlyOutput("symbol_plot"),
+                    plotlyOutput("predict_plot"),
+                ),
+                fluidRow(
+                    column(
+                        6, plotlyOutput("residual_plot")
+                    ),
+                    column(
+                        6, plotlyOutput("profit_plot")
+                    ),
+                )
             )
-        )
-   ) 
+        ) 
+    )
 )
 
 server <- function(input, output, session) {
@@ -136,10 +138,11 @@ server <- function(input, output, session) {
             input$model_in, 
             "gbm" = "gbm$",
             "ets" = (do_ets(stock.symbol = input$symbol_in, trades = stock_df(),
-                    window.size = input$windowSize)),
+                        window.size = input$windowSize)),
             "dl" = "dl$",
             "rf" = "rf$",
-            "reg" = "reg$",
+            "reg" = (do_reg(stock.symbol = input$symbol_in, trades = stock_df(),
+                        window.size = input$windowSize)),
             "multireg" = "multi$",
             "dlgrid" = "gird$"
         )
@@ -312,6 +315,116 @@ do_ets <- function(stock.symbol, trades, window.size) {
     
     return (result)
 }
+
+#----
+# do regression
+do_reg <- function(stock.symbol, trades, window.size) {
+    model <- "lr"
+    rows.number <- length(model) * length(stock.symbol) 
+    
+    pred.cols <- c("symbol", "date", "actual_final_price", "change", "model", 
+                   "predicted_price", "ME", "MAE", "RMSE", "MPE", "MAPE", "MASE")
+    pred.df <- data.frame(matrix(nrow=0, ncol=length(pred.cols)))
+    names(pred.df) <- pred.cols
+    
+    stock.df <- trades %>% filter(symbol == stock.symbol) %>% select(
+        "date", "final_price", "change")
+    
+    stock.ts <- ts(stock.df$final_price, frequency = 1)
+    
+    len <- length(stock.ts)
+    
+    valid.size <- 1
+    train.size <- window.size
+    
+    #rep(x, y): replicate x, y times
+    reg.me.list <- rep(0, len - train.size - valid.size + 1)
+    reg.mae.list <- rep(0, len - train.size - valid.size + 1) 
+    reg.rmse.list <- rep(0, len - train.size - valid.size + 1)
+    reg.mpe.list <- rep(0, len - train.size - valid.size + 1)
+    reg.mape.list <- rep(0, len - train.size - valid.size + 1)
+    reg.mase.list <- rep(0, len - train.size - valid.size + 1)
+    
+    for(j in 1 : (len - train.size - valid.size)) {
+        day.index <- j + train.size + valid.size
+        
+        train.ts <- window(stock.ts, start = j , end = j + train.size)
+        
+        valid.ts <- window(stock.ts, start = j + train.size + 1, 
+                           end = day.index)
+        
+        reg.fit <- tslm(train.ts ~ trend + I(trend^2))
+        
+        reg.pred <- forecast(reg.fit, h=valid.size, level=0)
+        
+        reg.me.list[[j]] <- accuracy(reg.pred, valid.ts)[2,"ME"]
+        reg.mae.list[[j]] <- accuracy(reg.pred, valid.ts)[2,"MAE"]
+        reg.rmse.list[[j]] <- accuracy(reg.pred, valid.ts)[2,"RMSE"]
+        reg.mpe.list[[j]] <- accuracy(reg.pred, valid.ts)[2,"MPE"]
+        reg.mape.list[[j]] <- accuracy(reg.pred, valid.ts)[2,"MAPE"]
+        reg.mase.list[[j]] <- accuracy(reg.pred, valid.ts)[2,"MASE"]
+        
+        if(j%%40==0){print(j)}
+        
+        temp.pred.df <- data.frame(matrix(
+            nrow=1, ncol=length(pred.cols)))
+        
+        tdate <- stock.df[day.index,]$date
+        actual.price <- valid.ts[[1]]
+        pred.price <- reg.pred$mean[[1]]
+        
+        change <- stock.df[day.index,]$change
+        
+        temp.pred.df <- data.frame(
+            stock.symbol, tdate, actual.price, change, model, pred.price, 
+            reg.me.list[[j]], reg.mae.list[[j]], reg.rmse.list[[j]],
+            reg.mpe.list[[j]], reg.mape.list[[j]], reg.mase.list[[j]]
+        )
+        
+        colnames(temp.pred.df) <- pred.cols
+        
+        pred.df <- rbind(pred.df, temp.pred.df)
+    }
+    
+    p <- list("model" = model, "sym" = stock.symbol, 
+              "mape" = mean(reg.mape.list), "rmse" = mean(reg.rmse.list))
+    print(p)
+    
+    pred.df[,"date"] <- as.character(pred.df[,"date"])
+    
+    profit <- sign(
+        (pred.df$predicted_price - shift_vector(pred.df$actual_final_price, 1))* 
+            pred.df$change
+    )
+    
+    result <- list(
+        "df" = pred.df,
+        
+        "error_parameters" = data.frame("mape" = p$mape, "rmse" = p$rmse),
+        
+        "predictions" = pred.df[,c("date", "actual_final_price", 
+                                   "predicted_price")],
+        
+        "residuals" = pred.df[,c("date", "ME")],
+        
+        "profits" = data.frame(
+            "profit" = c("Wrong", "Right"), 
+            "color" = c("red", "green"),
+            "sum" = c(
+                abs(sum(profit[profit == -1])),
+                sum(profit[profit != -1])
+            )
+        ),
+        
+        "profit_percent" = round(sum(profit[profit != -1]/length(profit)), 4)
+        
+    )
+    print("__________Finished__________")
+    
+    return (result)
+}
+
+
 
 #----
 # shift vector

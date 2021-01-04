@@ -1,3 +1,4 @@
+library("lubridate")
 library("dplyr")
 library("plotly")
 library("forecast")
@@ -38,7 +39,7 @@ end_date <- (trade_df %>% select(date) %>% slice(which.max(date)))$date
 models <- list(
     "gradient boost model" = "gbm", "exponential smoothing" = "ets", 
     "deep learning" = "dl", "random forest" = "rf", "linear regression" = "reg", 
-    "multi varient regression" = "multireg", "deep learning grid" = "dlgrid"
+    "multi-variable regression" = "multireg", "deep learning grid" = "dlgrid"
 )
 
 
@@ -151,7 +152,10 @@ server <- function(input, output, session) {
                 do_reg(stock.symbol = input$symbol_in, 
                     trades = stock_df(), window.size = input$windowSize)
             ),
-            "multireg" = "multi$",
+            "multireg" = (
+                do_multi_reg(stock.symbol = input$symbol_in, 
+                    trades = stock_df(), window.size = input$windowSize)
+            ),
             "dlgrid" = "gird$"
         )
     })
@@ -215,7 +219,6 @@ server <- function(input, output, session) {
     )
     
 }
-
 
 shinyApp(ui, server)
 
@@ -460,6 +463,137 @@ do_reg <- function(stock.symbol, trades, window.size) {
     return (result)
 }
 
+#----
+# multi variable regression
+do_multi_reg <- function(stock.symbol, trades, window.size) {
+    withProgress(message = 'Calculating', value = 0, {
+        
+        model <- "multi-var LR"
+        rows.number <- length(model) * length(stock.symbol) 
+        
+        pred.cols <- c(
+            "symbol", "date", "actual_final_price", "change", "model", 
+            "predicted_price", "ME", "MAPE", "RMSE"
+        )
+        pred.df <- data.frame(matrix(nrow=0, ncol=length(pred.cols)))
+        names(pred.df) <- pred.cols
+        
+        stock.df <- trades %>% filter(symbol == stock.symbol)
+        
+        stock.df$first_price <- shift_vector(stock.df$first_price, 1)
+        stock.df$final_price <- shift_vector(stock.df$final_price, 1)
+        stock.df$last_trade_price <- shift_vector(stock.df$last_trade_price, 1)
+        stock.df$number_of_trades <- shift_vector(stock.df$number_of_trades, 1)
+        stock.df$volume <- shift_vector(stock.df$volume, 1)
+        stock.df$value <- shift_vector(stock.df$value, 1)
+        stock.df$min_price <- shift_vector(stock.df$min_price, 1)
+        stock.df$max_price <- shift_vector(stock.df$max_price, 1)
+        stock.df$change <- shift_vector(stock.df$change, 1)
+        
+        len <- nrow(stock.df)
+        stock.df$index <- 1:len
+        
+        stock.df$trades_number_inverse <- (
+            (stock.df$number_of_trades + 0.0001)^(-1)
+        )
+        
+        valid.size <- 1
+        train.size <- window.size
+        
+        #rep(x, y): replicate x, y times
+        reg.me.list <- rep(0, len - train.size - valid.size + 1)
+        reg.rmse.list <- rep(0, len - train.size - valid.size + 1)
+        reg.mape.list <- rep(0, len - train.size - valid.size + 1)
+        
+        for(j in 1 : (len - train.size - valid.size)) {
+            day.index <- j + train.size + valid.size
+            
+            train_df <- stock.df[j:(j+train.size),]
+            test_df <- stock.df[day.index:day.index,]
+            
+            lr <- lm(
+                final_price ~ index + trades_number_inverse + volume + 
+                value + min_price + max_price, data = train_df
+            )
+            
+            test_df$yhat <- predict(lr, newdata = test_df)
+            pred.price <- test_df$yhat
+            
+            tdate <-stock.df[day.index,]$date
+            actual.price <- stock.df[day.index,]$final_price
+            change <- stock.df[day.index,]$change
+            
+            reg.me.list[[j]] <- actual.price - pred.price
+            
+            reg.mape.list[[j]] <- abs(actual.price - pred.price) / 
+                (actual.price + 0.000001) * 100
+            
+            reg.rmse.list[[j]] <- (
+                (sum((actual.price - pred.price)^2/valid.size))^(0.5)
+            )
+            
+            
+            if(j%%40==0){print(j)}
+            
+            incProgress(
+                1/(len - train.size - valid.size),
+                detail = paste(j, " th day")
+            )
+            
+            temp.pred.df <- data.frame(matrix(
+                nrow=1, ncol=length(pred.cols)))
+            
+            temp.pred.df <- data.frame(
+                stock.symbol, tdate, actual.price, change, model, pred.price, 
+                reg.me.list[[j]], reg.mape.list[[j]], reg.rmse.list[[j]]
+            )
+            
+            colnames(temp.pred.df) <- pred.cols
+            
+            pred.df <- rbind(pred.df, temp.pred.df)
+            
+            remove(temp.pred.df)
+        }
+        
+        p <- list("model" = model, "sym" = stock.symbol, 
+                  "mape" = mean(reg.mape.list), "rmse" = mean(reg.rmse.list))
+        print(p)
+        
+        pred.df[,"date"] <- as.character(pred.df[,"date"])
+        
+        profit <- sign(
+            (pred.df$predicted_price - 
+                shift_vector(pred.df$actual_final_price, 1)) * pred.df$change
+        )
+        
+        result <- list(
+            "df" = pred.df,
+            
+            "error_parameters" = data.frame("mape" = p$mape, "rmse" = p$rmse),
+            
+            "predictions" = pred.df[,c("date", "actual_final_price", 
+                                       "predicted_price")],
+            
+            "residuals" = pred.df[,c("date", "ME")],
+            
+            "profits" = data.frame(
+                "profit" = c("Wrong", "Right"), 
+                "color" = c("red", "green"),
+                "sum" = c(
+                    abs(sum(profit[profit == -1])),
+                    sum(profit[profit != -1])
+                )
+            ),
+            
+            "profit_percent" = round(
+                sum(profit[profit != -1]/length(profit)), 4
+            )
+        )
+    })
+    print("__________Finished__________")
+    
+    return (result)
+}
 
 #----
 # shift vector

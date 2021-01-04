@@ -175,6 +175,10 @@ server <- function(input, output, session) {
     
     observeEvent(
         input$predictButton, {
+            shinyjs::hide(id = "predict_plot")
+            shinyjs::hide(id = "residual_plot", anim = TRUE)
+            shinyjs::hide(id = "profit_plot", anim = TRUE)
+            shinyjs::hide(id = "model_error")
             shinyjs::hide(id = "symbol_plot")
 
             predict_result <- do_predict()
@@ -423,7 +427,6 @@ do_reg <- function(stock.symbol, trades, window.size) {
     
     return (result)
 }
-
 
 
 #----

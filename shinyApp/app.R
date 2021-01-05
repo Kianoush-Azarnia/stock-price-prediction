@@ -3,6 +3,9 @@ library("dplyr")
 library("plotly")
 library("forecast")
 
+library(h2o)
+h2o.init(max_mem_size = "4G")
+
 library("shiny")
 library("shinyjs")
 # library("shinydashboard")
@@ -41,7 +44,6 @@ models <- list(
     "deep learning" = "dl", "random forest" = "rf", "linear regression" = "reg", 
     "multi-variable regression" = "multireg", "deep learning grid" = "dlgrid"
 )
-
 
 #----
 ui <- navbarPage("Stock Price Prediction",
@@ -480,15 +482,7 @@ do_multi_reg <- function(stock.symbol, trades, window.size) {
         
         stock.df <- trades %>% filter(symbol == stock.symbol)
         
-        stock.df$first_price <- shift_vector(stock.df$first_price, 1)
-        stock.df$final_price <- shift_vector(stock.df$final_price, 1)
-        stock.df$last_trade_price <- shift_vector(stock.df$last_trade_price, 1)
-        stock.df$number_of_trades <- shift_vector(stock.df$number_of_trades, 1)
-        stock.df$volume <- shift_vector(stock.df$volume, 1)
-        stock.df$value <- shift_vector(stock.df$value, 1)
-        stock.df$min_price <- shift_vector(stock.df$min_price, 1)
-        stock.df$max_price <- shift_vector(stock.df$max_price, 1)
-        stock.df$change <- shift_vector(stock.df$change, 1)
+        stock.df <- shift_data_frame(stock.df)
         
         len <- nrow(stock.df)
         stock.df$index <- 1:len
@@ -596,16 +590,10 @@ do_multi_reg <- function(stock.symbol, trades, window.size) {
 }
 
 #----
-# shift vector
-shift_vector <- function(x, n, up = FALSE){
-    if (up) {
-        res <- c(x[-(seq(n))], rep(0, n))
-    } else {
-        res <- c(rep(0, n), x[-length(x):(-length(x)+n-1)])    
-    }
-    return (res)
+# Gradient boost model
+do_gbm <- function(stock.symbol, trades, window.size) {
+    return(0)
 }
-
 
 #----
 # dumb price direction move prediction
@@ -642,4 +630,31 @@ dumb_price_move_prediction <- function(df, stock.symbol){
         "profit_percent" = round(sum(profit[profit != -1]/length(profit)), 4)
     )
     return(result)
+}
+
+#----
+# shift dataframe one day for ML algorithms
+shift_data_frame <- function(stock.df) {
+    stock.df$first_price <- shift_vector(stock.df$first_price, 1)
+    stock.df$final_price <- shift_vector(stock.df$final_price, 1)
+    stock.df$last_trade_price <- shift_vector(stock.df$last_trade_price, 1)
+    stock.df$number_of_trades <- shift_vector(stock.df$number_of_trades, 1)
+    stock.df$volume <- shift_vector(stock.df$volume, 1)
+    stock.df$value <- shift_vector(stock.df$value, 1)
+    stock.df$min_price <- shift_vector(stock.df$min_price, 1)
+    stock.df$max_price <- shift_vector(stock.df$max_price, 1)
+    stock.df$change <- shift_vector(stock.df$change, 1)
+    
+    return(stock.df)
+}
+
+#----
+# shift vector
+shift_vector <- function(x, n, up = FALSE){
+    if (up) {
+        res <- c(x[-(seq(n))], rep(0, n))
+    } else {
+        res <- c(rep(0, n), x[-length(x):(-length(x)+n-1)])    
+    }
+    return (res)
 }

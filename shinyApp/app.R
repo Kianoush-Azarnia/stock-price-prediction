@@ -121,7 +121,7 @@ server <- function(input, output, session) {
     })
     
     observeEvent(input$symbol_in != "",{
-        shinyjs::hide(id = "predict_plot")
+        shinyjs::hide(id = "predict_plot", anim = TRUE)
         shinyjs::hide(id = "residual_plot", anim = TRUE)
         shinyjs::hide(id = "profit_plot", anim = TRUE)
         shinyjs::hide(id = "model_error")
@@ -189,7 +189,7 @@ server <- function(input, output, session) {
     
     observeEvent(
         input$predictButton, {
-            shinyjs::hide(id = "predict_plot")
+            shinyjs::hide(id = "predict_plot", anim = TRUE)
             shinyjs::hide(id = "residual_plot", anim = TRUE)
             shinyjs::hide(id = "profit_plot", anim = TRUE)
             shinyjs::hide(id = "model_error")
@@ -213,9 +213,9 @@ server <- function(input, output, session) {
                 predict_result$error_parameters
             })
             
-            shinyjs::show(id = "predict_plot")
-            shinyjs::show(id = "residual_plot", anim = TRUE, animType = "fade")
-            shinyjs::show(id = "profit_plot", anim = TRUE, animType = "fade")
+            shinyjs::show(id = "predict_plot", anim = TRUE,)
+            shinyjs::show(id = "residual_plot", anim = TRUE)
+            shinyjs::show(id = "profit_plot", anim = TRUE)
             shinyjs::show(id = "model_error") 
         }
     )
@@ -665,7 +665,6 @@ dumb_price_move_prediction <- function(df, stock.symbol){
 # shift dataframe one day for ML algorithms
 shift_data_frame <- function(stock.df) {
     stock.df$first_price <- shift_vector(stock.df$first_price, 1)
-    stock.df$final_price <- shift_vector(stock.df$final_price, 1)
     stock.df$last_trade_price <- shift_vector(stock.df$last_trade_price, 1)
     stock.df$number_of_trades <- shift_vector(stock.df$number_of_trades, 1)
     stock.df$volume <- shift_vector(stock.df$volume, 1)

@@ -47,7 +47,7 @@ models <- list(
 
 #----
 ui <- navbarPage("Stock Price Prediction",
-    tabPanel("Time Series Forecasting",
+    tabPanel("Statistical",
         useShinyjs(),
         sidebarLayout(
             sidebarPanel(

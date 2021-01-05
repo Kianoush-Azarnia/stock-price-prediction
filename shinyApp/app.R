@@ -592,7 +592,36 @@ do_multi_reg <- function(stock.symbol, trades, window.size) {
 #----
 # Gradient boost model
 do_gbm <- function(stock.symbol, trades, window.size) {
-    return(0)
+    model <- "Gradient Boost"
+    rows.number <- length(model) * length(stock.symbol) 
+    
+    pred.cols <- c(
+        "symbol", "date", "actual_final_price", "change", "model", 
+        "predicted_price", "ME", "MAPE", "RMSE"
+    )
+    pred.df <- data.frame(matrix(nrow=0, ncol=length(pred.cols)))
+    names(pred.df) <- pred.cols
+    
+    stock.df <- trades %>% filter(symbol == stock.symbol)
+    
+    stock.df <- shift_data_frame(stock.df)
+    
+    len <- nrow(stock.df)
+    stock.df$index <- 1:len
+    
+    stock.df$trades_number_inverse <- (
+        (stock.df$number_of_trades + 0.0001)^(-1)
+    )
+    
+    valid.size <- 1
+    train.size <- window.size
+    
+    #rep(x, y): replicate x, y times
+    reg.me.list <- rep(0, len - train.size - valid.size + 1)
+    reg.rmse.list <- rep(0, len - train.size - valid.size + 1)
+    reg.mape.list <- rep(0, len - train.size - valid.size + 1)
+    
+    
 }
 
 #----

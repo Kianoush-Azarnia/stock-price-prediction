@@ -38,10 +38,16 @@ unique_symbols <- trade_df %>% count(symbol) %>% filter(n >= 30) %>%
 start_date <- (trade_df %>% select(date) %>% slice(which.min(date)))$date
 end_date <- (trade_df %>% select(date) %>% slice(which.max(date)))$date
 
-models <- list(
-    "gradient boost machine" = "gbm", "exponential smoothing" = "ets", 
-    "deep learning" = "dl", "random forest" = "rf", "linear regression" = "reg", 
-    "multi-variable regression" = "multireg", "deep learning grid" = "dlgrid"
+stat_models <- list(
+    "exponential smoothing" = "ets", 
+    "linear regression" = "reg", 
+    "multi-variable regression" = "multireg"
+)
+
+ml_models <- list(
+    "gradient boost machine" = "gbm", "deep learning" = "dl", 
+    "random forest" = "rf",
+    "deep learning grid" = "dlgrid"
 )
 
 #----
@@ -67,7 +73,7 @@ ui <- navbarPage("Stock Price Prediction",
                 ),
                 
                 selectizeInput(
-                    "stat_model_in", "Choose a model", choices = models,
+                    "stat_model_in", "Choose a model", choices = stat_models,
                     options = list(
                         placeholder = "predictor models",
                         onInitialize = I('function() { this.setValue(""); }')
@@ -96,6 +102,57 @@ ui <- navbarPage("Stock Price Prediction",
                 )
             )
         ) 
+    ),
+    tabPanel("Machine Learning", 
+        useShinyjs(),
+        sidebarLayout(
+         sidebarPanel(
+             selectizeInput(
+                 "ml_symbol_in", "Choose a symbol", choices = unique_symbols,
+                 options = list(
+                     placeholder = "stock symbols",
+                     onInitialize = I('function() { this.setValue(""); }')
+                 )
+             ),
+             
+             dateRangeInput(
+                 "ml_dateRange_in", "Prediction range", 
+                 start = start_date, end = end_date, 
+                 min = start_date, max = end_date,
+                 format = "yyyy-mm-dd", startview = "month", weekstart = 6,
+                 language = "en", separator = " to ", width = NULL
+             ),
+             
+             selectizeInput(
+                 "ml_model_in", "Choose a model", choices = stat_models,
+                 options = list(
+                     placeholder = "predictor models",
+                     onInitialize = I('function() { this.setValue(""); }')
+                 )
+             ),
+             numericInput("ml_window_size", "window size", value = 9, 
+                          min = 9, max = 30),
+             
+             actionButton("ml_predict_button", "Predict"),
+             
+             tableOutput("ml_model_error")
+         ), 
+         mainPanel(
+             fluidRow(
+                 plotlyOutput("ml_symbol_plot"),
+                 
+                 plotlyOutput("ml_predict_plot"),
+             ),
+             fluidRow(
+                 column(
+                     6, plotlyOutput("ml_residual_plot")
+                 ),
+                 column(
+                     6, plotlyOutput("ml_profit_plot")
+                 ),
+             )
+         )
+        )
     )
 )
 
@@ -132,30 +189,12 @@ server <- function(input, output, session) {
         shinyjs::show(id = "stat_symbol_plot" , anim = TRUE)
     })
     
-    stat_validate_before_plot <- function() {
-        validate(need(input$stat_model_in != "", "Please choose a model"))
-        
-        validate(need(nrow(stock_df()) > 1.5 * input$stat_window_size, 
-                      "Insufficient data or too-large window size"))
-    }
-    
     do_stat_predict <- reactive({
+        stat_validate_before_plot()
         switch(
             input$stat_model_in, 
-            "gbm" = (
-                do_gbm(stock.symbol = input$stat_symbol_in, 
-                    trades = stock_df(), window.size = input$stat_window_size)
-            ),
             "ets" = (
                 do_ets(stock.symbol = input$stat_symbol_in, 
-                    trades = stock_df(), window.size = input$stat_window_size)
-            ),
-            "dl" = (
-                do_deep_learning(stock.symbol = input$stat_symbol_in, 
-                    trades = stock_df(), window.size = input$stat_window_size)
-            ),
-            "rf" = (
-                do_random_forest(stock.symbol = input$stat_symbol_in, 
                     trades = stock_df(), window.size = input$stat_window_size)
             ),
             "reg" = (
@@ -165,16 +204,33 @@ server <- function(input, output, session) {
             "multireg" = (
                 do_multi_reg(stock.symbol = input$stat_symbol_in, 
                     trades = stock_df(), window.size = input$stat_window_size)
+            )
+        )
+    })
+    
+    do_ml_predict <- reactive({
+        switch(
+            input$ml_model_in,
+            "gbm" = (
+                do_gbm(stock.symbol = input$ml_symbol_in, 
+                    trades = stock_df(), window.size = input$ml_window_size)
+            ),
+            "dl" = (
+                do_deep_learning(stock.symbol = input$ml_symbol_in, 
+                    trades = stock_df(), window.size = input$ml_window_size)
+            ),
+            "rf" = (
+                do_random_forest(stock.symbol = input$ml_symbol_in, 
+                    trades = stock_df(), window.size = input$ml_window_size)
             ),
             "dlgrid" = (
-                do_grid_on_deep_learning(stock.symbol = input$stat_symbol_in, 
-                    trades = stock_df(), window.size = input$stat_window_size)
+                do_grid_on_deep_learning(stock.symbol = input$ml_symbol_in, 
+                    trades = stock_df(), window.size = input$ml_window_size)
             )
         )
     })
     
     plot_prediction <- function(df) {
-        stat_validate_before_plot()
         m <- df$predictions
         p <- plot_ly(m, x = ~date, y = ~actual_final_price, 
                      type = "scatter", name = "actual price")
@@ -183,7 +239,6 @@ server <- function(input, output, session) {
     }
     
     plot_residual <- function(df) {
-        stat_validate_before_plot()
         m <- df$residuals
         p <- plot_ly(m, x = ~date, y = ~ME, color = I("brown"), 
                      type = "scatter", name = "residuals")
@@ -191,11 +246,17 @@ server <- function(input, output, session) {
     }
     
     plot_profit <- function(df) {
-        stat_validate_before_plot()
         m <- df$profits
         p <- plot_ly(m, x = ~profit, y = ~sum, type = "bar", 
                      color = ~profit=="Right", colors = ~color)
         return(p)
+    }
+    
+    stat_validate_before_plot <- function() {
+        validate(need(input$stat_model_in != "", "Please choose a model"))
+        
+        validate(need(nrow(stock_df()) > 2 * input$stat_window_size, 
+                      "Insufficient data or too-large window size"))
     }
     
     observeEvent(
@@ -205,7 +266,13 @@ server <- function(input, output, session) {
             shinyjs::hide(id = "stat_profit_plot", anim = TRUE)
             shinyjs::hide(id = "stat_model_error")
             shinyjs::hide(id = "stat_symbol_plot" , anim = TRUE)
-
+            
+            if (input$stat_model_in == "") {
+                showNotification("Please Choose a model")
+            } else if (nrow(stock_df()) < 2 * input$stat_window_size) {
+                showNotification("Too large window size or insufficient data")
+            }
+            
             predict_result <- do_stat_predict()
             
             output$stat_predict_plot <- renderPlotly({

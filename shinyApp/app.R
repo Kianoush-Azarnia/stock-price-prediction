@@ -4,7 +4,6 @@ library("plotly")
 library("forecast")
 
 library(h2o)
-h2o.init(max_mem_size = "4G")
 
 library("shiny")
 library("shinyjs")
@@ -40,7 +39,7 @@ start_date <- (trade_df %>% select(date) %>% slice(which.min(date)))$date
 end_date <- (trade_df %>% select(date) %>% slice(which.max(date)))$date
 
 models <- list(
-    "gradient boost model" = "gbm", "exponential smoothing" = "ets", 
+    "gradient boost machine" = "gbm", "exponential smoothing" = "ets", 
     "deep learning" = "dl", "random forest" = "rf", "linear regression" = "reg", 
     "multi-variable regression" = "multireg", "deep learning grid" = "dlgrid"
 )
@@ -52,7 +51,7 @@ ui <- navbarPage("Stock Price Prediction",
         sidebarLayout(
             sidebarPanel(
                 selectizeInput(
-                    "symbol_in", "Choose a symbol", choices = unique_symbols,
+                    "stat_symbol_in", "Choose a symbol", choices = unique_symbols,
                     options = list(
                         placeholder = "stock symbols",
                         onInitialize = I('function() { this.setValue(""); }')
@@ -60,7 +59,7 @@ ui <- navbarPage("Stock Price Prediction",
                 ),
                 
                 dateRangeInput(
-                    "dateRange_in", "Prediction range", 
+                    "stat_dateRange_in", "Prediction range", 
                     start = start_date, end = end_date, 
                     min = start_date, max = end_date,
                     format = "yyyy-mm-dd", startview = "month", weekstart = 6,
@@ -68,31 +67,31 @@ ui <- navbarPage("Stock Price Prediction",
                 ),
                 
                 selectizeInput(
-                    "model_in", "Choose a model", choices = models,
+                    "stat_model_in", "Choose a model", choices = models,
                     options = list(
                         placeholder = "predictor models",
                         onInitialize = I('function() { this.setValue(""); }')
                     )
                 ),
-                numericInput("windowSize", "window size", value = 9, 
+                numericInput("stat_window_size", "window size", value = 9, 
                              min = 9, max = 30),
                 
-                actionButton("predictButton", "Predict"),
+                actionButton("stat_predict_button", "Predict"),
                 
-                tableOutput("model_error")
+                tableOutput("stat_model_error")
             ), 
             mainPanel(
                 fluidRow(
-                    plotlyOutput("symbol_plot"),
+                    plotlyOutput("stat_symbol_plot"),
                     
-                    plotlyOutput("predict_plot"),
+                    plotlyOutput("stat_predict_plot"),
                 ),
                 fluidRow(
                     column(
-                        6, plotlyOutput("residual_plot")
+                        6, plotlyOutput("stat_residual_plot")
                     ),
                     column(
-                        6, plotlyOutput("profit_plot")
+                        6, plotlyOutput("stat_profit_plot")
                     ),
                 )
             )
@@ -105,65 +104,71 @@ server <- function(input, output, session) {
     stock_df <- reactive({
         # make sure end date later than start date
         validate(
-            need((input$dateRange_in[2] > input$dateRange_in[1]), 
+            need((input$stat_dateRange_in[2] > input$stat_dateRange_in[1]), 
                  "NOTE: end date should not be earlier than start date"
             )
         )
         
         validate(
-            need(input$symbol_in != "", "Please select a stock symbol")
+            need(input$stat_symbol_in != "", "Please select a stock symbol")
         )
         
         trade_df %>% filter(
-            symbol == input$symbol_in 
-            & date >= input$dateRange_in[1] & date <= input$dateRange_in[2]
+            symbol == input$stat_symbol_in 
+            & date >= input$stat_dateRange_in[1] & date <= input$stat_dateRange_in[2]
         )
     })
     
-    observeEvent(input$symbol_in != "",{
-        shinyjs::hide(id = "predict_plot", anim = TRUE)
-        shinyjs::hide(id = "residual_plot", anim = TRUE)
-        shinyjs::hide(id = "profit_plot", anim = TRUE)
-        shinyjs::hide(id = "model_error")
+    observeEvent(input$stat_symbol_in != "",{
+        shinyjs::hide(id = "stat_predict_plot", anim = TRUE)
+        shinyjs::hide(id = "stat_residual_plot", anim = TRUE)
+        shinyjs::hide(id = "stat_profit_plot", anim = TRUE)
+        shinyjs::hide(id = "stat_model_error")
         
-        output$symbol_plot <- renderPlotly({
+        output$stat_symbol_plot <- renderPlotly({
             stock_df() %>% plot_ly(x = ~date, y = ~final_price, mode = "lines")
         })
         
-        shinyjs::show(id = "symbol_plot")
+        shinyjs::show(id = "stat_symbol_plot" , anim = TRUE)
     })
     
-    validate_before_plot <- function() {
-        validate(need(input$model_in != "", "Please choose a model"))
+    stat_validate_before_plot <- function() {
+        validate(need(input$stat_model_in != "", "Please choose a model"))
         
-        validate(need(nrow(stock_df()) > 2 * input$windowSize, 
+        validate(need(nrow(stock_df()) > 1.5 * input$stat_window_size, 
                       "Insufficient data or too-large window size"))
     }
     
-    do_predict <- reactive({
+    do_stat_predict <- reactive({
         switch(
-            input$model_in, 
-            "gbm" = "gbm$",
+            input$stat_model_in, 
+            "gbm" = (
+                do_gbm(stock.symbol = input$stat_symbol_in, 
+                    trades = stock_df(), window.size = input$stat_window_size)
+            ),
             "ets" = (
-                do_ets(stock.symbol = input$symbol_in, 
-                    trades = stock_df(), window.size = input$windowSize)
+                do_ets(stock.symbol = input$stat_symbol_in, 
+                    trades = stock_df(), window.size = input$stat_window_size)
             ),
             "dl" = "dl$",
-            "rf" = "rf$",
+            "rf" = (
+                do_random_forest(stock.symbol = input$stat_symbol_in, 
+                    trades = stock_df(), window.size = input$stat_window_size)
+            ),
             "reg" = (
-                do_reg(stock.symbol = input$symbol_in, 
-                    trades = stock_df(), window.size = input$windowSize)
+                do_reg(stock.symbol = input$stat_symbol_in, 
+                    trades = stock_df(), window.size = input$stat_window_size)
             ),
             "multireg" = (
-                do_multi_reg(stock.symbol = input$symbol_in, 
-                    trades = stock_df(), window.size = input$windowSize)
+                do_multi_reg(stock.symbol = input$stat_symbol_in, 
+                    trades = stock_df(), window.size = input$stat_window_size)
             ),
             "dlgrid" = "gird$"
         )
     })
     
     plot_prediction <- function(df) {
-        validate_before_plot()
+        stat_validate_before_plot()
         m <- df$predictions
         p <- plot_ly(m, x = ~date, y = ~actual_final_price, 
                      type = "scatter", name = "actual price")
@@ -172,7 +177,7 @@ server <- function(input, output, session) {
     }
     
     plot_residual <- function(df) {
-        validate_before_plot()
+        stat_validate_before_plot()
         m <- df$residuals
         p <- plot_ly(m, x = ~date, y = ~ME, color = I("brown"), 
                      type = "scatter", name = "residuals")
@@ -180,7 +185,7 @@ server <- function(input, output, session) {
     }
     
     plot_profit <- function(df) {
-        validate_before_plot()
+        stat_validate_before_plot()
         m <- df$profits
         p <- plot_ly(m, x = ~profit, y = ~sum, type = "bar", 
                      color = ~profit=="Right", colors = ~color)
@@ -188,35 +193,35 @@ server <- function(input, output, session) {
     }
     
     observeEvent(
-        input$predictButton, {
-            shinyjs::hide(id = "predict_plot", anim = TRUE)
-            shinyjs::hide(id = "residual_plot", anim = TRUE)
-            shinyjs::hide(id = "profit_plot", anim = TRUE)
-            shinyjs::hide(id = "model_error")
-            shinyjs::hide(id = "symbol_plot")
+        input$stat_predict_button, {
+            shinyjs::hide(id = "stat_predict_plot", anim = TRUE)
+            shinyjs::hide(id = "stat_residual_plot", anim = TRUE)
+            shinyjs::hide(id = "stat_profit_plot", anim = TRUE)
+            shinyjs::hide(id = "stat_model_error")
+            shinyjs::hide(id = "stat_symbol_plot" , anim = TRUE)
 
-            predict_result <- do_predict()
+            predict_result <- do_stat_predict()
             
-            output$predict_plot <- renderPlotly({
+            output$stat_predict_plot <- renderPlotly({
                 plot_prediction(predict_result)
             })
             
-            output$residual_plot <- renderPlotly({
+            output$stat_residual_plot <- renderPlotly({
                 plot_residual(predict_result)
             })
             
-            output$profit_plot <- renderPlotly({
+            output$stat_profit_plot <- renderPlotly({
                 plot_profit(predict_result)
             })
             
-            output$model_error <- renderTable({
+            output$stat_model_error <- renderTable({
                 predict_result$error_parameters
             })
             
-            shinyjs::show(id = "predict_plot", anim = TRUE,)
-            shinyjs::show(id = "residual_plot", anim = TRUE)
-            shinyjs::show(id = "profit_plot", anim = TRUE)
-            shinyjs::show(id = "model_error") 
+            shinyjs::show(id = "stat_predict_plot", anim = TRUE,)
+            shinyjs::show(id = "stat_residual_plot", anim = TRUE)
+            shinyjs::show(id = "stat_profit_plot", anim = TRUE)
+            shinyjs::show(id = "stat_model_error") 
         }
     )
     
@@ -590,38 +595,279 @@ do_multi_reg <- function(stock.symbol, trades, window.size) {
 }
 
 #----
-# Gradient boost model
+# Gradient boost machine
 do_gbm <- function(stock.symbol, trades, window.size) {
-    model <- "Gradient Boost"
-    rows.number <- length(model) * length(stock.symbol) 
+    withProgress(message = 'Calculating', value = 0, {
+
+        model <- "Gradient Boost"
+        rows.number <- length(model) * length(stock.symbol) 
+        
+        pred.cols <- c(
+            "symbol", "date", "actual_final_price", "change", "model", 
+            "predicted_price", "ME", "MAPE", "RMSE"
+        )
+        pred.df <- data.frame(matrix(nrow=0, ncol=length(pred.cols)))
+        names(pred.df) <- pred.cols
+        
+        stock.df <- trades %>% filter(symbol == stock.symbol)
+        
+        stock.df <- shift_data_frame(stock.df)
+        
+        len <- nrow(stock.df)
+        stock.df$index <- 1:len
+        
+        stock.df$trades_number_inverse <- (
+            (stock.df$number_of_trades + 0.0001)^(-1)
+        )
+        
+        valid.size <- 1
+        train.size <- window.size
+        
+        #rep(x, y): replicate x, y times
+        me.list <- rep(0, len - train.size - valid.size + 1)
+        rmse.list <- rep(0, len - train.size - valid.size + 1)
+        mape.list <- rep(0, len - train.size - valid.size + 1)
+        
+        h2o.init(max_mem_size = "4G")
+        
+        for(j in 1 : (len - train.size - valid.size)) {
+            day.index <- j + train.size + valid.size
+            
+            train_df <- stock.df[j:(j+train.size),]
+            test_df <- stock.df[day.index:day.index,]
+            
+            train_h <- as.h2o(train_df)
+            test_h <- as.h2o(test_df)
+            
+            x <- colnames(stock.df)
+            y <- "final_price"
+            
+            gbm_md <- h2o.gbm(
+                training_frame = train_h,
+                x = x, y = y,
+                max_depth = 20,
+                distribution = "gaussian",
+                stopping_metric = "RMSE",
+                max_runtime_secs = 60 * 0.25,
+                ntrees = 500,
+                learn_rate = 0.1,
+                score_each_iteration = TRUE
+            )
+            
+            test_h$yhat <- h2o.predict(gbm_md, test_h)
+            
+            symbol_list <- rep(stock.symbol, valid.size)
+            model_list <- rep(model, valid.size)
+            
+            tdate <- test_df$date
+            change <- test_df$change
+            actual.price <- test_df$final_price
+            
+            pred.price <- as.data.frame(test_h$yhat)$yhat
+            
+            me.list[[j]] <- actual.price - pred.price
+            
+            rmse.list[[j]] <- (sum((actual.price - pred.price) ^ 2) / 
+                                   valid.size) ^ (0.5)
+            
+            mape.list[[j]] <- (abs(actual.price - pred.price) / 
+                                           (actual.price + 0.0001)) * 100
+            
+            temp.pred.df <- data.frame(
+                symbol_list, tdate, actual.price, change, model_list, 
+                pred.price, me.list[[j]], rmse.list[[j]], mape.list[[j]]
+            )
+            
+            colnames(temp.pred.df) <- pred.cols
+            pred.df <- rbind(pred.df, temp.pred.df)
+            remove(temp.pred.df)
+            
+            if(j %% 40 == 0) {print(j)}
+            incProgress(
+                1/(len - train.size - valid.size),
+                detail = paste(j, " th day")
+            )
+            
+        }
+        p <- list("model" = model, "sym" = stock.symbol, 
+                  "mape" = mean(mape.list), "rmse" = mean(rmse.list))
+        print(p)
+        
+        pred.df[,"date"] <- as.character(pred.df[,"date"])
+        
+        profit <- sign(
+            (pred.df$predicted_price - 
+                 shift_vector(pred.df$actual_final_price, 1)) * pred.df$change
+        )
+        
+        result <- list(
+            "df" = pred.df,
+            
+            "error_parameters" = data.frame("mape" = p$mape, "rmse" = p$rmse),
+            
+            "predictions" = pred.df[,c("date", "actual_final_price", 
+                                       "predicted_price")],
+            
+            "residuals" = pred.df[,c("date", "ME")],
+            
+            "profits" = data.frame(
+                "profit" = c("Wrong", "Right"), 
+                "color" = c("red", "green"),
+                "sum" = c(
+                    abs(sum(profit[profit == -1])),
+                    sum(profit[profit != -1])
+                )
+            ),
+            
+            "profit_percent" = round(
+                sum(profit[profit != -1]/length(profit)), 4
+            )
+        )
+        
+        h2o.shutdown(prompt = FALSE)
+    })
     
-    pred.cols <- c(
-        "symbol", "date", "actual_final_price", "change", "model", 
-        "predicted_price", "ME", "MAPE", "RMSE"
-    )
-    pred.df <- data.frame(matrix(nrow=0, ncol=length(pred.cols)))
-    names(pred.df) <- pred.cols
+    print("__________Finished__________")
     
-    stock.df <- trades %>% filter(symbol == stock.symbol)
+    return(result)
+}
+
+#----
+# random forest
+do_random_forest <- function(stock.symbol, trades, window.size) {
+    withProgress(message = 'Calculating', value = 0, {
+        
+        model <- "Gradient Boost"
+        rows.number <- length(model) * length(stock.symbol) 
+        
+        pred.cols <- c(
+            "symbol", "date", "actual_final_price", "change", "model", 
+            "predicted_price", "ME", "MAPE", "RMSE"
+        )
+        pred.df <- data.frame(matrix(nrow=0, ncol=length(pred.cols)))
+        names(pred.df) <- pred.cols
+        
+        stock.df <- trades %>% filter(symbol == stock.symbol)
+        
+        stock.df <- shift_data_frame(stock.df)
+        
+        len <- nrow(stock.df)
+        stock.df$index <- 1:len
+        
+        stock.df$trades_number_inverse <- (
+            (stock.df$number_of_trades + 0.0001)^(-1)
+        )
+        
+        valid.size <- 1
+        train.size <- window.size
+        
+        #rep(x, y): replicate x, y times
+        me.list <- rep(0, len - train.size - valid.size + 1)
+        rmse.list <- rep(0, len - train.size - valid.size + 1)
+        mape.list <- rep(0, len - train.size - valid.size + 1)
+        
+        h2o.init(max_mem_size = "4G")
+        
+        for(j in 1 : (len - train.size - valid.size)) {
+            day.index <- j + train.size + valid.size
+            
+            train_df <- stock.df[j:(j+train.size),]
+            test_df <- stock.df[day.index:day.index,]
+            
+            train_h <- as.h2o(train_df)
+            test_h <- as.h2o(test_df)
+            
+            x <- colnames(stock.df)
+            y <- "final_price"
+            
+            rf_md <- h2o.randomForest(
+                training_frame = train_h,
+                x = x, y = y,
+                ntrees = 500,
+                max_runtime_secs = 60 * 0.25,
+                stopping_rounds = 10,
+                stopping_metric = "RMSE",
+                score_each_iteration = TRUE,
+                stopping_tolerance = 0.0001,
+                seed = 1234
+            )
+            
+            test_h$yhat <- h2o.predict(rf_md, test_h)
+            
+            symbol_list <- rep(stock.symbol, valid.size)
+            model_list <- rep(model, valid.size)
+            
+            tdate <- test_df$date
+            change <- test_df$change
+            actual.price <- test_df$final_price
+            
+            pred.price <- as.data.frame(test_h$yhat)$yhat
+            
+            me.list[[j]] <- actual.price - pred.price
+            
+            rmse.list[[j]] <- (sum((actual.price - pred.price) ^ 2) / 
+                                   valid.size) ^ (0.5)
+            
+            mape.list[[j]] <- (abs(actual.price - pred.price) / 
+                                   (actual.price + 0.0001)) * 100
+            
+            temp.pred.df <- data.frame(
+                symbol_list, tdate, actual.price, change, model_list, 
+                pred.price, me.list[[j]], rmse.list[[j]], mape.list[[j]]
+            )
+            
+            colnames(temp.pred.df) <- pred.cols
+            pred.df <- rbind(pred.df, temp.pred.df)
+            remove(temp.pred.df)
+            
+            if(j %% 40 == 0) {print(j)}
+            incProgress(
+                1/(len - train.size - valid.size),
+                detail = paste(j, " th day")
+            )
+            
+        }
+        p <- list("model" = model, "sym" = stock.symbol, 
+                  "mape" = mean(mape.list), "rmse" = mean(rmse.list))
+        print(p)
+        
+        pred.df[,"date"] <- as.character(pred.df[,"date"])
+        
+        profit <- sign(
+            (pred.df$predicted_price - 
+                 shift_vector(pred.df$actual_final_price, 1)) * pred.df$change
+        )
+        
+        result <- list(
+            "df" = pred.df,
+            
+            "error_parameters" = data.frame("mape" = p$mape, "rmse" = p$rmse),
+            
+            "predictions" = pred.df[,c("date", "actual_final_price", 
+                                       "predicted_price")],
+            
+            "residuals" = pred.df[,c("date", "ME")],
+            
+            "profits" = data.frame(
+                "profit" = c("Wrong", "Right"), 
+                "color" = c("red", "green"),
+                "sum" = c(
+                    abs(sum(profit[profit == -1])),
+                    sum(profit[profit != -1])
+                )
+            ),
+            
+            "profit_percent" = round(
+                sum(profit[profit != -1]/length(profit)), 4
+            )
+        )
+        
+        h2o.shutdown(prompt = FALSE)
+    })
     
-    stock.df <- shift_data_frame(stock.df)
+    print("__________Finished__________")
     
-    len <- nrow(stock.df)
-    stock.df$index <- 1:len
-    
-    stock.df$trades_number_inverse <- (
-        (stock.df$number_of_trades + 0.0001)^(-1)
-    )
-    
-    valid.size <- 1
-    train.size <- window.size
-    
-    #rep(x, y): replicate x, y times
-    reg.me.list <- rep(0, len - train.size - valid.size + 1)
-    reg.rmse.list <- rep(0, len - train.size - valid.size + 1)
-    reg.mape.list <- rep(0, len - train.size - valid.size + 1)
-    
-    
+    return(result)
 }
 
 #----

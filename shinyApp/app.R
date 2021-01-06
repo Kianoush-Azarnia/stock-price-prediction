@@ -166,7 +166,10 @@ server <- function(input, output, session) {
                 do_multi_reg(stock.symbol = input$stat_symbol_in, 
                     trades = stock_df(), window.size = input$stat_window_size)
             ),
-            "dlgrid" = "gird$"
+            "dlgrid" = (
+                do_grid_on_deep_learning(stock.symbol = input$stat_symbol_in, 
+                    trades = stock_df(), window.size = input$stat_window_size)
+            )
         )
     })
     
@@ -1010,6 +1013,180 @@ do_deep_learning <- function(stock.symbol, trades, window.size) {
         )
         
         h2o.shutdown(prompt = FALSE)
+    })
+    
+    print("__________Finished__________")
+    
+    return(result)
+}
+
+#----
+# grid search on deep learning
+do_grid_on_deep_learning <- function(stock.symbol, trades, window.size) {
+    withProgress(message = 'Calculating', value = 0, {
+        
+        model <- "Gradient Boost"
+        rows.number <- length(model) * length(stock.symbol) 
+        
+        pred.cols <- c(
+            "symbol", "date", "actual_final_price", "change", "model", 
+            "predicted_price", "ME", "MAPE", "RMSE"
+        )
+        pred.df <- data.frame(matrix(nrow=0, ncol=length(pred.cols)))
+        names(pred.df) <- pred.cols
+        
+        stock.df <- trades %>% filter(symbol == stock.symbol)
+        
+        stock.df <- shift_data_frame(stock.df)
+        
+        len <- nrow(stock.df)
+        stock.df$index <- 1:len
+        
+        stock.df$trades_number_inverse <- (
+            (stock.df$number_of_trades + 0.0001)^(-1)
+        )
+        
+        valid.size <- 1
+        train.size <- window.size
+        
+        #rep(x, y): replicate x, y times
+        me.list <- rep(0, len - train.size - valid.size + 1)
+        rmse.list <- rep(0, len - train.size - valid.size + 1)
+        mape.list <- rep(0, len - train.size - valid.size + 1)
+        
+        for(j in 1 : (len - train.size - valid.size)) {
+            h2o.init(max_mem_size = "4G")
+            
+            day.index <- j + train.size + valid.size
+            
+            train_df <- stock.df[j:(j+train.size),]
+            test_df <- stock.df[day.index:day.index,]
+            
+            train_h <- as.h2o(train_df)
+            test_h <- as.h2o(test_df)
+            
+            x <- colnames(stock.df)
+            y <- "final_price"
+            
+            hyper_params_dl <- list(
+                activation = c("Rectifier", "Maxout", "Tanh",
+                               "RectifierWithDropout", "MaxoutWithDropout", "TanhWithDropout"), 
+                hidden = list(c(5, 5, 5, 5, 5), c(10, 10, 10, 10), c(50, 50, 50), 
+                              c(100, 100, 100)),
+                epochs = c(1000, 5000, 10000),
+                l1 = c(0, 0.00001, 0.0001), 
+                l2 = c(0, 0.00001, 0.0001),
+                rate = c(0, 01, 0.005, 0.001),
+                rate_annealing = c(1e-8, 1e-7, 1e-6),
+                rho = c(0.9, 0.95, 0.99, 0.999),
+                epsilon = c(1e-10, 1e-8, 1e-6, 1e-4),
+                momentum_start = c(0, 0.5),
+                momentum_stable = c(0.99, 0.5, 0),
+                input_dropout_ratio = c(0, 0.1, 0.2),
+                max_w2 = c(10, 100, 1000, 3.4028235e+38)
+            )
+            
+            search_criteria_dl <- list(
+                strategy = "RandomDiscrete", 
+                max_models = 100,
+                max_runtime_secs = 60 * 0.25,
+                stopping_tolerance = 0.001,
+                stopping_rounds = 15,
+                stopping_metric = "RMSE",
+                seed = 2020
+            )
+            
+            dl_grid <- h2o.grid(
+                algorithm = "deeplearning",
+                search_criteria = search_criteria_dl,
+                hyper_params = hyper_params_dl,
+                x = x, y = y,
+                training_frame = train_h,
+                grid_id = "dl_grid",
+                seed = 1234
+            )
+            
+            dl2_grid_search <- h2o.getGrid(
+                grid_id = "dl_grid",
+                sort_by = "rmse",
+                decreasing = FALSE
+            )
+            
+            dl_grid_md <- h2o.getModel(dl2_grid_search@model_ids[[1]])
+            
+            test_h$yhat <- h2o.predict(dl_grid_md, test_h)
+            
+            symbol_list <- rep(stock.symbol, valid.size)
+            model_list <- rep(model, valid.size)
+            
+            tdate <- test_df$date
+            change <- test_df$change
+            actual.price <- test_df$final_price
+            
+            pred.price <- as.data.frame(test_h$yhat)$yhat
+            
+            me.list[[j]] <- actual.price - pred.price
+            
+            rmse.list[[j]] <- (sum((actual.price - pred.price) ^ 2) / 
+                                   valid.size) ^ (0.5)
+            
+            mape.list[[j]] <- (abs(actual.price - pred.price) / 
+                                   (actual.price + 0.0001)) * 100
+            
+            temp.pred.df <- data.frame(
+                symbol_list, tdate, actual.price, change, model_list, 
+                pred.price, me.list[[j]], rmse.list[[j]], mape.list[[j]]
+            )
+            
+            colnames(temp.pred.df) <- pred.cols
+            pred.df <- rbind(pred.df, temp.pred.df)
+            remove(temp.pred.df)
+            
+            if(j %% 40 == 0) {print(j)}
+            incProgress(
+                1/(len - train.size - valid.size),
+                detail = paste(j, " th day")
+            )
+            
+            h2o.shutdown(prompt = FALSE)
+            
+            Sys.sleep(2)
+        }
+        p <- list("model" = model, "sym" = stock.symbol, 
+                  "mape" = mean(mape.list), "rmse" = mean(rmse.list))
+        print(p)
+        
+        pred.df[,"date"] <- as.character(pred.df[,"date"])
+        
+        profit <- sign(
+            (pred.df$predicted_price - 
+                 shift_vector(pred.df$actual_final_price, 1)) * pred.df$change
+        )
+        
+        result <- list(
+            "df" = pred.df,
+            
+            "error_parameters" = data.frame("mape" = p$mape, "rmse" = p$rmse),
+            
+            "predictions" = pred.df[,c("date", "actual_final_price", 
+                                       "predicted_price")],
+            
+            "residuals" = pred.df[,c("date", "ME")],
+            
+            "profits" = data.frame(
+                "profit" = c("Wrong", "Right"), 
+                "color" = c("red", "green"),
+                "sum" = c(
+                    abs(sum(profit[profit == -1])),
+                    sum(profit[profit != -1])
+                )
+            ),
+            
+            "profit_percent" = round(
+                sum(profit[profit != -1]/length(profit)), 4
+            )
+        )
+        
     })
     
     print("__________Finished__________")

@@ -140,15 +140,15 @@ ui <- navbarPage("Stock Price Prediction",
              numericInput("ml_window_size", "window size", value = 20, 
                           min = 20, max = 50),
              
-             numericInput("max_runtime_secs", "Seconds per iteration", 
+             numericInput("ml_max_runtime_secs", "Seconds per iteration", 
                           value = 0, min = 0, max = 600),
              
              selectizeInput(
-                 "stopping_metric", "Stopping metric",
+                 "ml_stopping_metric", "Stopping metric",
                  choices = ml_stopping_metric, selected = ml_stopping_metric[1]
              ),
              
-             numericInput("stopping_rounds", "Stopping rounds", 
+             numericInput("ml_stopping_rounds", "Stopping rounds", 
                           value = 0, min = 0, max = 100),
              
              actionButton("ml_predict_button", "Predict")
@@ -315,20 +315,40 @@ server <- function(input, output, session) {
         switch(
             input$ml_model_in,
             "gbm" = (
-                do_gbm(stock.symbol = input$ml_symbol_in, 
-                    trades = ml_stock_df(), window.size = input$ml_window_size)
+                do_gbm(
+                    stock.symbol = input$ml_symbol_in, 
+                    trades = ml_stock_df(), window.size = input$ml_window_size,
+                    ml_max_runtime_secs = input$ml_max_runtime_secs,
+                    ml_stopping_metric = input$ml_stopping_metric,
+                    ml_stopping_rounds = input$ml_stopping_rounds
+                )
             ),
             "dl" = (
-                do_deep_learning(stock.symbol = input$ml_symbol_in, 
-                    trades = ml_stock_df(), window.size = input$ml_window_size)
+                do_deep_learning(
+                    stock.symbol = input$ml_symbol_in, 
+                    trades = ml_stock_df(), window.size = input$ml_window_size,
+                    ml_max_runtime_secs = input$ml_max_runtime_secs,
+                    ml_stopping_metric = input$ml_stopping_metric,
+                    ml_stopping_rounds = input$ml_stopping_rounds
+                )
             ),
             "rf" = (
-                do_random_forest(stock.symbol = input$ml_symbol_in, 
-                    trades = ml_stock_df(), window.size = input$ml_window_size)
+                do_random_forest(
+                    stock.symbol = input$ml_symbol_in, 
+                    trades = ml_stock_df(), window.size = input$ml_window_size,
+                    ml_max_runtime_secs = input$ml_max_runtime_secs,
+                    ml_stopping_metric = input$ml_stopping_metric,
+                    ml_stopping_rounds = input$ml_stopping_rounds
+                )
             ),
             "dlgrid" = (
-                do_grid_on_deep_learning(stock.symbol = input$ml_symbol_in, 
-                    trades = ml_stock_df(), window.size = input$ml_window_size)
+                do_grid_on_deep_learning(
+                    stock.symbol = input$ml_symbol_in, 
+                    trades = ml_stock_df(), window.size = input$ml_window_size,
+                    ml_max_runtime_secs = input$ml_max_runtime_secs,
+                    ml_stopping_metric = input$ml_stopping_metric,
+                    ml_stopping_rounds = input$ml_stopping_rounds
+                )
             )
         )
     })
@@ -765,7 +785,10 @@ do_multi_reg <- function(stock.symbol, trades, window.size) {
 
 #----
 # Gradient boost machine
-do_gbm <- function(stock.symbol, trades, window.size) {
+do_gbm <- function(
+    stock.symbol, trades, window.size,
+    ml_max_runtime_secs, ml_stopping_metric, ml_stopping_rounds
+) {
     withProgress(message = 'Calculating', value = 0, {
 
         model <- "Gradient Boost"
@@ -816,12 +839,14 @@ do_gbm <- function(stock.symbol, trades, window.size) {
                 x = x, y = y,
                 max_depth = 20,
                 distribution = "gaussian",
-                stopping_metric = "RMSE",
-                max_runtime_secs = 60 * 0.25,
                 ntrees = 500,
                 learn_rate = 0.1,
-                score_each_iteration = TRUE
+                score_each_iteration = TRUE,
+                stopping_rounds = ml_stopping_rounds,
+                stopping_metric = ml_stopping_metric,
+                max_runtime_secs = ml_max_runtime_secs
             )
+              
             
             test_h$yhat <- h2o.predict(gbm_md, test_h)
             
@@ -903,7 +928,10 @@ do_gbm <- function(stock.symbol, trades, window.size) {
 
 #----
 # random forest
-do_random_forest <- function(stock.symbol, trades, window.size) {
+do_random_forest <- function(
+    stock.symbol, trades, window.size,
+    ml_max_runtime_secs, ml_stopping_metric, ml_stopping_rounds
+) {
     withProgress(message = 'Calculating', value = 0, {
         
         model <- "Gradient Boost"
@@ -953,12 +981,12 @@ do_random_forest <- function(stock.symbol, trades, window.size) {
                 training_frame = train_h,
                 x = x, y = y,
                 ntrees = 500,
-                max_runtime_secs = 60 * 0.25,
-                stopping_rounds = 10,
-                stopping_metric = "RMSE",
                 score_each_iteration = TRUE,
                 stopping_tolerance = 0.0001,
-                seed = 1234
+                seed = 1234,
+                stopping_rounds = ml_stopping_rounds,
+                stopping_metric = ml_stopping_metric,
+                max_runtime_secs = ml_max_runtime_secs
             )
             
             test_h$yhat <- h2o.predict(rf_md, test_h)
@@ -1041,7 +1069,10 @@ do_random_forest <- function(stock.symbol, trades, window.size) {
 
 #----
 # deep learning
-do_deep_learning <- function(stock.symbol, trades, window.size) {
+do_deep_learning <- function(
+    stock.symbol, trades, window.size,
+    ml_max_runtime_secs, ml_stopping_metric, ml_stopping_rounds
+) {
     withProgress(message = 'Calculating', value = 0, {
         
         model <- "Gradient Boost"
@@ -1100,9 +1131,9 @@ do_deep_learning <- function(stock.symbol, trades, window.size) {
                 score_training_samples = 0,
                 score_validation_samples = 0,
                 training_frame = train_h,
-                stopping_rounds = 0,
-                stopping_metric = "RMSE",
-                max_runtime_secs = 60 * 0.25
+                stopping_rounds = ml_stopping_rounds,
+                stopping_metric = ml_stopping_metric,
+                max_runtime_secs = ml_max_runtime_secs
             )
             
             test_h$yhat <- h2o.predict(dl_md, test_h)
@@ -1185,7 +1216,10 @@ do_deep_learning <- function(stock.symbol, trades, window.size) {
 
 #----
 # grid search on deep learning
-do_grid_on_deep_learning <- function(stock.symbol, trades, window.size) {
+do_grid_on_deep_learning <- function(
+    stock.symbol, trades, window.size,
+    ml_max_runtime_secs, ml_stopping_metric, ml_stopping_rounds
+) {
     withProgress(message = 'Calculating', value = 0, {
         
         model <- "Gradient Boost"
@@ -1252,11 +1286,11 @@ do_grid_on_deep_learning <- function(stock.symbol, trades, window.size) {
             search_criteria_dl <- list(
                 strategy = "RandomDiscrete", 
                 max_models = 100,
-                max_runtime_secs = 60 * 0.25,
                 stopping_tolerance = 0.001,
-                stopping_rounds = 15,
-                stopping_metric = "RMSE",
-                seed = 2020
+                seed = 2020,
+                stopping_rounds = ml_stopping_rounds,
+                stopping_metric = ml_stopping_metric,
+                max_runtime_secs = ml_max_runtime_secs
             )
             
             dl_grid <- h2o.grid(

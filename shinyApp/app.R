@@ -50,6 +50,8 @@ ml_models <- list(
     "deep learning grid" = "dlgrid"
 )
 
+ml_stopping_metric <- c("AUTO", "MSE", "RMSE", "MAE", "RMSLE", "AUC", "AUCPR")
+
 #----
 ui <- navbarPage("Stock Price Prediction",
     tabPanel("Statistical",
@@ -79,12 +81,13 @@ ui <- navbarPage("Stock Price Prediction",
                         onInitialize = I('function() { this.setValue(""); }')
                     )
                 ),
+                
+                tableOutput("stat_model_error"),
+                
                 numericInput("stat_window_size", "window size", value = 9, 
                              min = 9, max = 30),
                 
-                actionButton("stat_predict_button", "Predict"),
-                
-                tableOutput("stat_model_error")
+                actionButton("stat_predict_button", "Predict")
             ), 
             mainPanel(
                 fluidRow(
@@ -97,12 +100,13 @@ ui <- navbarPage("Stock Price Prediction",
                         6, plotlyOutput("stat_residual_plot")
                     ),
                     column(
-                        6, plotlyOutput("stat_profit_plot")
+                        6,  plotlyOutput("stat_profit_plot") 
                     ),
                 )
             )
         ) 
     ),
+    
     tabPanel("Machine Learning", 
         useShinyjs(),
         sidebarLayout(
@@ -130,12 +134,24 @@ ui <- navbarPage("Stock Price Prediction",
                      onInitialize = I('function() { this.setValue(""); }')
                  )
              ),
+             
+             tableOutput("ml_model_error"),
+             
              numericInput("ml_window_size", "window size", value = 20, 
                           min = 20, max = 50),
              
-             actionButton("ml_predict_button", "Predict"),
+             numericInput("max_runtime_secs", "Seconds per iteration", 
+                          value = 0, min = 0, max = 600),
              
-             tableOutput("ml_model_error")
+             selectizeInput(
+                 "stopping_metric", "Stopping metric",
+                 choices = ml_stopping_metric, selected = ml_stopping_metric[1]
+             ),
+             
+             numericInput("stopping_rounds", "Stopping rounds", 
+                          value = 0, min = 0, max = 100),
+             
+             actionButton("ml_predict_button", "Predict")
          ), 
          mainPanel(
              fluidRow(
@@ -211,7 +227,7 @@ server <- function(input, output, session) {
     stat_validate_before_plot <- function() {
         validate(need(input$stat_model_in != "", "Please choose a model"))
         
-        validate(need(nrow(stat_stock_df()) > 2 * input$stat_window_size, 
+        validate(need(nrow(stat_stock_df()) >= 2 * input$stat_window_size, 
                       "Insufficient data or too-large window size"))
     }
     
@@ -290,7 +306,7 @@ server <- function(input, output, session) {
     ml_validate_before_plot <- function() {
         validate(need(input$ml_model_in != "", "Please choose a model"))
         
-        validate(need(nrow(ml_stock_df()) > 2 * input$ml_window_size, 
+        validate(need(nrow(ml_stock_df()) >= 2 * input$ml_window_size, 
                       "Insufficient data or too-large window size"))
     }
     

@@ -58,6 +58,21 @@ gbm_distributions <- c(
     "AUTO", "bernoulli", "quasibinomial", "multinomial", "gaussian", "poisson", 
     "gamma", "tweedie", "laplace", "quantile", "huber", "custom"
 )
+rf_distributions <- gbm_distributions
+
+dl_loss <- c(
+    "Automatic", "CrossEntropy", "Quadratic", "Huber", "Absolute", "Quantile"
+)
+
+dl_distribution = c(
+    "AUTO", "bernoulli", "multinomial", "gaussian", "poisson", "gamma",
+    "tweedie", "laplace", "quantile", "huber"
+)
+
+dl_activation = c(
+    "Tanh", "TanhWithDropout", "Rectifier", "RectifierWithDropout",
+    "Maxout", "MaxoutWithDropout"
+)
 
 #----
 ui <- navbarPage("Stock Price Prediction",
@@ -220,6 +235,21 @@ ui <- navbarPage("Stock Price Prediction",
              numericInput("ml_window_size", "window size", value = 20, 
                           min = 20, max = 50),
              
+             selectizeInput(
+                 "dl_loss", "Loss",
+                 choices = dl_loss, selected = dl_loss[1]
+             ),
+             
+             selectizeInput(
+                 "dl_distribution", "Distribution",
+                 choices = dl_distribution, selected = dl_distribution[1]
+             ),
+             
+             selectizeInput(
+                 "dl_activation", "Activation",
+                 choices = dl_activation, selected = dl_activation[1]
+             ),
+             
              numericInput("ml_max_runtime_secs", "Seconds per iteration", 
                           value = 0, min = 0, max = 600),
              
@@ -284,8 +314,8 @@ ui <- navbarPage("Stock Price Prediction",
              numericInput("gbm_ntress", "number of trees", value = 500,
                           min = 10, max = 1000, step = 10),
              
-             numericInput("gbm_max_depth", "maximum tree depth", value = 10,
-                          min = 0, max = 20),
+             numericInput("gbm_max_depth", "maximum tree depth", value = 20,
+                          min = 0, max = 50),
              
              numericInput("gbm_learn_rate", "learn rate", value = 0.1,
                           min = 0, max = 1, step = 0.1),
@@ -318,6 +348,76 @@ ui <- navbarPage("Stock Price Prediction",
                  ),
                  column(
                      6, plotlyOutput("gbm_profit_plot")
+                 ),
+             )
+         )
+        )
+    ),
+    
+    tabPanel("Random forest", 
+        useShinyjs(),
+        sidebarLayout(
+         sidebarPanel(
+             selectizeInput(
+                 "rf_symbol_in", "Choose a symbol", choices = unique_symbols,
+                 options = list(
+                     placeholder = "stock symbols",
+                     onInitialize = I('function() { this.setValue(""); }')
+                 )
+             ),
+             
+             dateRangeInput(
+                 "rf_dateRange_in", "Prediction range", 
+                 start = start_date, end = end_date, 
+                 min = start_date, max = end_date,
+                 format = "yyyy-mm-dd", startview = "month", weekstart = 6,
+                 language = "en", separator = " to ", width = NULL
+             ),
+             
+             selectizeInput(
+                 "rf_distribution_in", "Choose a distribution", 
+                 choices = rf_distributions, selected = rf_distributions[1],
+                 options = list(
+                     placeholder = "distribution"
+                 )
+             ),
+             
+             tableOutput("rf_model_error"),
+             
+             numericInput("rf_ntress", "number of trees", value = 500,
+                          min = 10, max = 1000, step = 10),
+             
+             numericInput("rf_max_depth", "maximum tree depth", value = 20,
+                          min = 0, max = 50),
+             
+             numericInput("rf_window_size", "window size", value = 20, 
+                          min = 20, max = 50),
+             
+             numericInput("rf_max_runtime_secs", "Seconds per iteration", 
+                          value = 0, min = 0, max = 600),
+             
+             selectizeInput(
+                 "rf_stopping_metric", "Stopping metric",
+                 choices = ml_stopping_metric, selected = ml_stopping_metric[1]
+             ),
+             
+             numericInput("rf_stopping_rounds", "Stopping rounds", 
+                          value = 0, min = 0, max = 100),
+             
+             actionButton("rf_predict_button", "Predict")
+         ), 
+         mainPanel(
+             fluidRow(
+                 plotlyOutput("rf_symbol_plot"),
+                 
+                 plotlyOutput("rf_predict_plot"),
+             ),
+             fluidRow(
+                 column(
+                     6, plotlyOutput("rf_residual_plot")
+                 ),
+                 column(
+                     6, plotlyOutput("rf_profit_plot")
                  ),
              )
          )
@@ -485,7 +585,10 @@ server <- function(input, output, session) {
                     trades = ml_stock_df(), window.size = input$ml_window_size,
                     ml_max_runtime_secs = input$ml_max_runtime_secs,
                     ml_stopping_metric = input$ml_stopping_metric,
-                    ml_stopping_rounds = input$ml_stopping_rounds
+                    ml_stopping_rounds = input$ml_stopping_rounds,
+                    dl_activation = input$dl_activation,
+                    dl_distribution = input$dl_distribution,
+                    dl_loss = input$dl_loss
                 )
             ),
             "dlgrid" = (
@@ -636,6 +739,104 @@ server <- function(input, output, session) {
             shinyjs::show(id = "gbm_residual_plot", anim = TRUE)
             shinyjs::show(id = "gbm_profit_plot", anim = TRUE)
             shinyjs::show(id = "gbm_model_error") 
+        }
+    )
+    
+    # rf
+    #----
+    rf_stock_df <- reactive({
+        # make sure end date later than start date
+        validate(
+            need((input$rf_dateRange_in[2] > input$rf_dateRange_in[1]), 
+                 "NOTE: end date should not be earlier than start date"
+            )
+        )
+        
+        validate(
+            need(input$rf_symbol_in != "", "Please select a stock symbol")
+        )
+        
+        trade_df %>% filter(
+            symbol == input$rf_symbol_in 
+            & date >= input$rf_dateRange_in[1] & 
+                date <= input$rf_dateRange_in[2]
+        )
+    })
+    
+    rf_symbol_change <- reactive({
+        list(input$rf_symbol_in, input$rf_dateRange_in)
+    })
+    
+    observeEvent(rf_symbol_change(), {
+        shinyjs::hide(id = "rf_predict_plot", anim = TRUE)
+        shinyjs::hide(id = "rf_residual_plot", anim = TRUE)
+        shinyjs::hide(id = "rf_profit_plot", anim = TRUE)
+        shinyjs::hide(id = "rf_model_error")
+        
+        output$rf_symbol_plot <- renderPlotly({
+            rf_stock_df() %>% plot_ly(x = ~date, y = ~final_price, mode = "lines")
+        })
+        
+        shinyjs::show(id = "rf_symbol_plot" , anim = TRUE)
+    })
+    
+    rf_validate_before_plot <- function() {
+        validate(need(input$rf_distribution_in != "", "Please choose a model"))
+        
+        validate(need(nrow(rf_stock_df()) >= 2 * input$rf_window_size, 
+                      "Insufficient data or too-large window size"))
+    }
+    
+    do_rf_predict <- reactive({
+        rf_validate_before_plot()
+        do_random_forest(
+            stock.symbol = input$rf_symbol_in, 
+            trades = rf_stock_df(), window.size = input$rf_window_size,
+            ml_max_runtime_secs = input$rf_max_runtime_secs,
+            ml_stopping_metric = input$rf_stopping_metric,
+            ml_stopping_rounds = input$rf_stopping_rounds,
+            rf_ntrees = input$rf_ntrees,
+            rf_max_depth = input$rf_max_depth
+        )
+    })
+    
+    observeEvent(
+        input$rf_predict_button, {
+            shinyjs::hide(id = "rf_predict_plot", anim = TRUE)
+            shinyjs::hide(id = "rf_residual_plot", anim = TRUE)
+            shinyjs::hide(id = "rf_profit_plot", anim = TRUE)
+            shinyjs::hide(id = "rf_model_error")
+            
+            if (input$rf_distribution_in == "") {
+                showNotification("Please Choose a model")
+            } else if (nrow(rf_stock_df()) < 2 * input$rf_window_size) {
+                showNotification("Too large window size or insufficient data")
+            }
+            
+            predict_result <- do_rf_predict()
+            
+            shinyjs::hide(id = "rf_symbol_plot" , anim = TRUE)
+            
+            output$rf_predict_plot <- renderPlotly({
+                plot_prediction(predict_result)
+            })
+            
+            output$rf_residual_plot <- renderPlotly({
+                plot_residual(predict_result)
+            })
+            
+            output$rf_profit_plot <- renderPlotly({
+                plot_profit(predict_result)
+            })
+            
+            output$rf_model_error <- renderTable({
+                predict_result$error_parameters
+            })
+            
+            shinyjs::show(id = "rf_predict_plot", anim = TRUE,)
+            shinyjs::show(id = "rf_residual_plot", anim = TRUE)
+            shinyjs::show(id = "rf_profit_plot", anim = TRUE)
+            shinyjs::show(id = "rf_model_error") 
         }
     )
     
@@ -1286,7 +1487,8 @@ do_gbm <- function(
 # random forest
 do_random_forest <- function(
     stock.symbol, trades, window.size,
-    ml_max_runtime_secs, ml_stopping_metric, ml_stopping_rounds
+    ml_max_runtime_secs, ml_stopping_metric, ml_stopping_rounds,
+    rf_ntrees, rf_max_depth
 ) {
     withProgress(message = 'Calculating', value = 0, {
         
@@ -1336,7 +1538,8 @@ do_random_forest <- function(
             rf_md <- h2o.randomForest(
                 training_frame = train_h,
                 x = x, y = y,
-                ntrees = 500,
+                ntrees = rf_ntrees,
+                max_depth = rf_max_depth,
                 score_each_iteration = TRUE,
                 stopping_tolerance = 0.0001,
                 seed = 1234,
@@ -1427,7 +1630,8 @@ do_random_forest <- function(
 # deep learning
 do_deep_learning <- function(
     stock.symbol, trades, window.size,
-    ml_max_runtime_secs, ml_stopping_metric, ml_stopping_rounds
+    ml_max_runtime_secs, ml_stopping_metric, ml_stopping_rounds,
+    dl_loss, dl_distribution, dl_activation
 ) {
     withProgress(message = 'Calculating', value = 0, {
         
@@ -1476,8 +1680,9 @@ do_deep_learning <- function(
             
             dl_md <- h2o.deeplearning(
                 x = x, y = y,
-                distribution = "gaussian",
-                activation = "Tanh",
+                distribution = dl_distribution,
+                activation = dl_activation,
+                loss = dl_loss,
                 epochs = 1000,
                 train_samples_per_iteration = -1,
                 reproducible = FALSE,

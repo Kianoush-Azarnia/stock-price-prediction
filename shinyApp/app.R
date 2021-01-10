@@ -39,22 +39,29 @@ start_date <- (trade_df %>% select(date) %>% slice(which.min(date)))$date
 end_date <- (trade_df %>% select(date) %>% slice(which.max(date)))$date
 
 stat_models <- list(
-    "exponential smoothing" = "ets", 
     "linear regression" = "reg", 
     "multi-variable regression" = "multireg"
-)
+) # "exponential smoothing" = "ets", 
 
 ml_models <- list(
-    "gradient boost machine" = "gbm", "deep learning" = "dl", 
-    "random forest" = "rf",
+    "deep learning" = "dl", 
     "deep learning grid" = "dlgrid"
-)
+) #"gradient boost machine" = "gbm", "random forest" = "rf",
 
 ml_stopping_metric <- c("AUTO", "MSE", "RMSE", "MAE", "RMSLE", "AUC", "AUCPR")
 
+ets_models <- c("AAN", "ANN", "MAN", "MNN", "MMN")
+
+true_false_list <- list("True" = TRUE, "False" = FALSE)
+
+gbm_distributions <- c(
+    "AUTO", "bernoulli", "quasibinomial", "multinomial", "gaussian", "poisson", 
+    "gamma", "tweedie", "laplace", "quantile", "huber", "custom"
+)
+
 #----
 ui <- navbarPage("Stock Price Prediction",
-    tabPanel("Statistical",
+    tabPanel("Regression",
         useShinyjs(),
         sidebarLayout(
             sidebarPanel(
@@ -107,7 +114,80 @@ ui <- navbarPage("Stock Price Prediction",
         ) 
     ),
     
-    tabPanel("Machine Learning", 
+    tabPanel("Exponential Smoothing",
+        useShinyjs(),
+        sidebarLayout(
+         sidebarPanel(
+             selectizeInput(
+                 "ets_symbol_in", "Choose a symbol", choices = unique_symbols,
+                 options = list(
+                     placeholder = "stock symbols",
+                     onInitialize = I('function() { this.setValue(""); }')
+                 )
+             ),
+             
+             dateRangeInput(
+                 "ets_dateRange_in", "Prediction range", 
+                 start = start_date, end = end_date, 
+                 min = start_date, max = end_date,
+                 format = "yyyy-mm-dd", startview = "month", 
+                 weekstart = 6, language = "en", separator = " to ", 
+                 width = NULL
+             ),
+             
+             selectizeInput(
+                 "ets_model_in", "Choose a model", 
+                 choices = ets_models,
+                 options = list(
+                     placeholder = "predictor models",
+                     onInitialize = I('function() { this.setValue(""); }')
+                 )
+             ),
+             
+             tableOutput("ets_model_error"),
+             
+             selectizeInput(
+                 "ets_damped", "Using damp trend", 
+                 choices = true_false_list,
+                 selected = true_false_list[2]
+             ),
+             
+             selectizeInput(
+                 "ets_additive", "Consider just additive models", 
+                 choices = true_false_list,
+                 selected = true_false_list[2]
+             ),
+             
+             selectizeInput(
+                 "ets_multiplicative", "Allow multiplicative trend", 
+                 choices = true_false_list,
+                 selected = true_false_list[1]
+             ),
+             
+             numericInput("ets_window_size", "window size", value = 9, 
+                          min = 9, max = 30),
+             
+             actionButton("ets_predict_button", "Predict")
+         ), 
+         mainPanel(
+             fluidRow(
+                 plotlyOutput("ets_symbol_plot"),
+                 
+                 plotlyOutput("ets_predict_plot"),
+             ),
+             fluidRow(
+                 column(
+                     6, plotlyOutput("ets_residual_plot")
+                 ),
+                 column(
+                     6,  plotlyOutput("ets_profit_plot") 
+                 ),
+             )
+         )
+        ) 
+    ),
+    
+    tabPanel("Deep Learning", 
         useShinyjs(),
         sidebarLayout(
          sidebarPanel(
@@ -169,11 +249,86 @@ ui <- navbarPage("Stock Price Prediction",
              )
          )
         )
+    ),
+    
+    tabPanel("Gradient Boost Machine", 
+        useShinyjs(),
+        sidebarLayout(
+         sidebarPanel(
+             selectizeInput(
+                 "gbm_symbol_in", "Choose a symbol", choices = unique_symbols,
+                 options = list(
+                     placeholder = "stock symbols",
+                     onInitialize = I('function() { this.setValue(""); }')
+                 )
+             ),
+             
+             dateRangeInput(
+                 "gbm_dateRange_in", "Prediction range", 
+                 start = start_date, end = end_date, 
+                 min = start_date, max = end_date,
+                 format = "yyyy-mm-dd", startview = "month", weekstart = 6,
+                 language = "en", separator = " to ", width = NULL
+             ),
+             
+             selectizeInput(
+                 "gbm_distribution_in", "Choose a distribution", 
+                 choices = gbm_distributions, selected = gbm_distributions[1],
+                 options = list(
+                     placeholder = "distribution"
+                 )
+             ),
+             
+             tableOutput("gbm_model_error"),
+             
+             numericInput("gbm_ntress", "number of trees", value = 500,
+                          min = 10, max = 1000, step = 10),
+             
+             numericInput("gbm_max_depth", "maximum tree depth", value = 10,
+                          min = 0, max = 20),
+             
+             numericInput("gbm_learn_rate", "learn rate", value = 0.1,
+                          min = 0, max = 1, step = 0.1),
+             
+             numericInput("gbm_window_size", "window size", value = 20, 
+                          min = 20, max = 50),
+             
+             numericInput("gbm_max_runtime_secs", "Seconds per iteration", 
+                          value = 0, min = 0, max = 600),
+             
+             selectizeInput(
+                 "gbm_stopping_metric", "Stopping metric",
+                 choices = ml_stopping_metric, selected = ml_stopping_metric[1]
+             ),
+             
+             numericInput("gbm_stopping_rounds", "Stopping rounds", 
+                          value = 0, min = 0, max = 100),
+             
+             actionButton("gbm_predict_button", "Predict")
+         ), 
+         mainPanel(
+             fluidRow(
+                 plotlyOutput("gbm_symbol_plot"),
+                 
+                 plotlyOutput("gbm_predict_plot"),
+             ),
+             fluidRow(
+                 column(
+                     6, plotlyOutput("gbm_residual_plot")
+                 ),
+                 column(
+                     6, plotlyOutput("gbm_profit_plot")
+                 ),
+             )
+         )
+        )
     )
 )
 
+
 server <- function(input, output, session) {
-    #---- stat
+    # stat
+    #----
     stat_stock_df <- reactive({
         # make sure end date later than start date
         validate(
@@ -192,7 +347,11 @@ server <- function(input, output, session) {
         )
     })
     
-    observeEvent(input$stat_symbol_in != "",{
+    stat_symbol_change <- reactive({
+        list(input$stat_symbol_in, input$stat_dateRange_in)
+    })
+    
+    observeEvent(stat_symbol_change(), {
         shinyjs::hide(id = "stat_predict_plot", anim = TRUE)
         shinyjs::hide(id = "stat_residual_plot", anim = TRUE)
         shinyjs::hide(id = "stat_profit_plot", anim = TRUE)
@@ -237,7 +396,6 @@ server <- function(input, output, session) {
             shinyjs::hide(id = "stat_residual_plot", anim = TRUE)
             shinyjs::hide(id = "stat_profit_plot", anim = TRUE)
             shinyjs::hide(id = "stat_model_error")
-            shinyjs::hide(id = "stat_symbol_plot" , anim = TRUE)
             
             if (input$stat_model_in == "") {
                 showNotification("Please Choose a model")
@@ -246,6 +404,8 @@ server <- function(input, output, session) {
             }
             
             predict_result <- do_stat_predict()
+            
+            shinyjs::hide(id = "stat_symbol_plot" , anim = TRUE)
             
             output$stat_predict_plot <- renderPlotly({
                 plot_prediction(predict_result)
@@ -270,7 +430,8 @@ server <- function(input, output, session) {
         }
     )
     
-    #---- ml
+    # dl
+    #----
     ml_stock_df <- reactive({
         # make sure end date later than start date
         validate(
@@ -290,7 +451,11 @@ server <- function(input, output, session) {
         )
     })
     
-    observeEvent(input$ml_symbol_in != "",{
+    ml_symbol_change <- reactive({
+        list(input$ml_symbol_in, input$ml_dateRange_in)
+    })
+    
+    observeEvent(ml_symbol_change(), {
         shinyjs::hide(id = "ml_predict_plot", anim = TRUE)
         shinyjs::hide(id = "ml_residual_plot", anim = TRUE)
         shinyjs::hide(id = "ml_profit_plot", anim = TRUE)
@@ -314,26 +479,8 @@ server <- function(input, output, session) {
         ml_validate_before_plot()
         switch(
             input$ml_model_in,
-            "gbm" = (
-                do_gbm(
-                    stock.symbol = input$ml_symbol_in, 
-                    trades = ml_stock_df(), window.size = input$ml_window_size,
-                    ml_max_runtime_secs = input$ml_max_runtime_secs,
-                    ml_stopping_metric = input$ml_stopping_metric,
-                    ml_stopping_rounds = input$ml_stopping_rounds
-                )
-            ),
             "dl" = (
                 do_deep_learning(
-                    stock.symbol = input$ml_symbol_in, 
-                    trades = ml_stock_df(), window.size = input$ml_window_size,
-                    ml_max_runtime_secs = input$ml_max_runtime_secs,
-                    ml_stopping_metric = input$ml_stopping_metric,
-                    ml_stopping_rounds = input$ml_stopping_rounds
-                )
-            ),
-            "rf" = (
-                do_random_forest(
                     stock.symbol = input$ml_symbol_in, 
                     trades = ml_stock_df(), window.size = input$ml_window_size,
                     ml_max_runtime_secs = input$ml_max_runtime_secs,
@@ -359,7 +506,6 @@ server <- function(input, output, session) {
             shinyjs::hide(id = "ml_residual_plot", anim = TRUE)
             shinyjs::hide(id = "ml_profit_plot", anim = TRUE)
             shinyjs::hide(id = "ml_model_error")
-            shinyjs::hide(id = "ml_symbol_plot" , anim = TRUE)
             
             if (input$ml_model_in == "") {
                 showNotification("Please Choose a model")
@@ -368,6 +514,8 @@ server <- function(input, output, session) {
             }
             
             predict_result <- do_ml_predict()
+            
+            shinyjs::hide(id = "ml_symbol_plot" , anim = TRUE)
             
             output$ml_predict_plot <- renderPlotly({
                 plot_prediction(predict_result)
@@ -392,7 +540,206 @@ server <- function(input, output, session) {
         }
     )
     
-    #---- plot
+    # gbm
+    #----
+    gbm_stock_df <- reactive({
+        # make sure end date later than start date
+        validate(
+            need((input$gbm_dateRange_in[2] > input$gbm_dateRange_in[1]), 
+                 "NOTE: end date should not be earlier than start date"
+            )
+        )
+        
+        validate(
+            need(input$gbm_symbol_in != "", "Please select a stock symbol")
+        )
+        
+        trade_df %>% filter(
+            symbol == input$gbm_symbol_in 
+            & date >= input$gbm_dateRange_in[1] & 
+                date <= input$gbm_dateRange_in[2]
+        )
+    })
+    
+    gbm_symbol_change <- reactive({
+        list(input$gbm_symbol_in, input$gbm_dateRange_in)
+    })
+    
+    observeEvent(gbm_symbol_change(), {
+        shinyjs::hide(id = "gbm_predict_plot", anim = TRUE)
+        shinyjs::hide(id = "gbm_residual_plot", anim = TRUE)
+        shinyjs::hide(id = "gbm_profit_plot", anim = TRUE)
+        shinyjs::hide(id = "gbm_model_error")
+        
+        output$gbm_symbol_plot <- renderPlotly({
+            gbm_stock_df() %>% plot_ly(x = ~date, y = ~final_price, mode = "lines")
+        })
+        
+        shinyjs::show(id = "gbm_symbol_plot" , anim = TRUE)
+    })
+    
+    gbm_validate_before_plot <- function() {
+        validate(need(input$gbm_distribution_in != "", "Please choose a model"))
+        
+        validate(need(nrow(gbm_stock_df()) >= 2 * input$gbm_window_size, 
+                      "Insufficient data or too-large window size"))
+    }
+    
+    do_gbm_predict <- reactive({
+        gbm_validate_before_plot()
+        do_gbm(
+            stock.symbol = input$gbm_symbol_in, 
+            trades = gbm_stock_df(), window.size = input$gbm_window_size,
+            gbm_max_runtime_secs = input$gbm_max_runtime_secs,
+            gbm_stopping_metric = input$gbm_stopping_metric,
+            gbm_stopping_rounds = input$gbm_stopping_rounds,
+            gbm_ntrees = input$gbm_ntrees,
+            gbm_max_depth = input$gbm_max_depth,
+            gbm_learn_rate = input$gbm_learn_rate
+        )
+    })
+    
+    observeEvent(
+        input$gbm_predict_button, {
+            shinyjs::hide(id = "gbm_predict_plot", anim = TRUE)
+            shinyjs::hide(id = "gbm_residual_plot", anim = TRUE)
+            shinyjs::hide(id = "gbm_profit_plot", anim = TRUE)
+            shinyjs::hide(id = "gbm_model_error")
+            
+            if (input$gbm_distribution_in == "") {
+                showNotification("Please Choose a model")
+            } else if (nrow(gbm_stock_df()) < 2 * input$gbm_window_size) {
+                showNotification("Too large window size or insufficient data")
+            }
+            
+            predict_result <- do_gbm_predict()
+            
+            shinyjs::hide(id = "gbm_symbol_plot" , anim = TRUE)
+            
+            output$gbm_predict_plot <- renderPlotly({
+                plot_prediction(predict_result)
+            })
+            
+            output$gbm_residual_plot <- renderPlotly({
+                plot_residual(predict_result)
+            })
+            
+            output$gbm_profit_plot <- renderPlotly({
+                plot_profit(predict_result)
+            })
+            
+            output$gbm_model_error <- renderTable({
+                predict_result$error_parameters
+            })
+            
+            shinyjs::show(id = "gbm_predict_plot", anim = TRUE,)
+            shinyjs::show(id = "gbm_residual_plot", anim = TRUE)
+            shinyjs::show(id = "gbm_profit_plot", anim = TRUE)
+            shinyjs::show(id = "gbm_model_error") 
+        }
+    )
+    
+    # ets
+    #----
+    ets_stock_df <- reactive({
+        # make sure end date later than start date
+        validate(
+            need((input$ets_dateRange_in[2] > input$ets_dateRange_in[1]), 
+                 "NOTE: end date should not be earlier than start date"
+            )
+        )
+        
+        validate(
+            need(input$ets_symbol_in != "", "Please select a stock symbol")
+        )
+        
+        trade_df %>% filter(
+            symbol == input$ets_symbol_in & 
+                date >= input$ets_dateRange_in[1] & 
+                date <= input$ets_dateRange_in[2]
+        )
+    })
+    
+    ets_symbol_change <- reactive({
+        list(input$ets_symbol_in, input$ets_dateRange_in)
+    })
+    
+    observeEvent(ets_symbol_change(), {
+        shinyjs::hide(id = "ets_predict_plot", anim = TRUE)
+        shinyjs::hide(id = "ets_residual_plot", anim = TRUE)
+        shinyjs::hide(id = "ets_profit_plot", anim = TRUE)
+        shinyjs::hide(id = "ets_model_error")
+        
+        output$ets_symbol_plot <- renderPlotly({
+            ets_stock_df() %>% plot_ly(x = ~date, y = ~final_price, 
+                                       mode = "lines")
+        })
+        
+        shinyjs::show(id = "ets_symbol_plot" , anim = TRUE)
+    })
+    
+    do_ets_predict <- reactive({
+        ets_validate_before_plot()
+        do_ets(
+            stock.symbol = input$ets_symbol_in, 
+            trades = ets_stock_df(), 
+            window.size = input$ets_window_size,
+            model = input$ets_model_in,
+            multiplicative_trend = input$ets_multiplicative,
+            additive_only = input$ets_additive
+            
+        )
+    })
+    
+    ets_validate_before_plot <- function() {
+        validate(need(input$ets_model_in != "", "Please choose a model"))
+        
+        validate(need(nrow(ets_stock_df()) >= 2 * input$ets_window_size, 
+                      "Insufficient data or too-large window size"))
+    }
+    
+    observeEvent(
+        input$ets_predict_button, {
+            shinyjs::hide(id = "ets_predict_plot", anim = TRUE)
+            shinyjs::hide(id = "ets_residual_plot", anim = TRUE)
+            shinyjs::hide(id = "ets_profit_plot", anim = TRUE)
+            shinyjs::hide(id = "ets_model_error")
+            
+            if (input$ets_model_in == "") {
+                showNotification("Please Choose a model")
+            } else if (nrow(ets_stock_df()) < 2 * input$ets_window_size) {
+                showNotification("Too large window size or insufficient data")
+            }
+            
+            predict_result <- do_ets_predict()
+            
+            shinyjs::hide(id = "ets_symbol_plot" , anim = TRUE)
+            
+            output$ets_predict_plot <- renderPlotly({
+                plot_prediction(predict_result)
+            })
+            
+            output$ets_residual_plot <- renderPlotly({
+                plot_residual(predict_result)
+            })
+            
+            output$ets_profit_plot <- renderPlotly({
+                plot_profit(predict_result)
+            })
+            
+            output$ets_model_error <- renderTable({
+                predict_result$error_parameters
+            })
+            
+            shinyjs::show(id = "ets_predict_plot", anim = TRUE,)
+            shinyjs::show(id = "ets_residual_plot", anim = TRUE)
+            shinyjs::show(id = "ets_profit_plot", anim = TRUE)
+            shinyjs::show(id = "ets_model_error") 
+        }
+    )
+    
+    # plot
+    #----
     plot_prediction <- function(df) {
         m <- df$predictions
         p <- plot_ly(m, x = ~date, y = ~actual_final_price, 
@@ -421,9 +768,14 @@ shinyApp(ui, server)
 
 #----
 # exponential smoothing
-do_ets <- function(stock.symbol, trades, window.size) {
+do_ets <- function(
+    stock.symbol, trades, window.size, model = "MNN",
+    multiplicative_trend = FALSE,
+    additive_only = FALSE,
+    damped_trend = NULL
+) {
     withProgress(message = 'Calculating', value = 0, {
-        model = "MNN"
+        # browser()
         rows.number <- length(model) * length(stock.symbol) 
         
         pred.cols <- c(
@@ -460,7 +812,10 @@ do_ets <- function(stock.symbol, trades, window.size) {
                                end = day.index)
             
             ets.fit <- ets(
-                train.ts, model = model
+                train.ts, model = model, damped = damped_trend,
+                allow.multiplicative.trend = multiplicative_trend,
+                additive.only = additive_only,
+                restrict = FALSE
             )
             
             ets.pred <- forecast(ets.fit, h = valid.size)
@@ -787,7 +1142,8 @@ do_multi_reg <- function(stock.symbol, trades, window.size) {
 # Gradient boost machine
 do_gbm <- function(
     stock.symbol, trades, window.size,
-    ml_max_runtime_secs, ml_stopping_metric, ml_stopping_rounds
+    gbm_max_runtime_secs, gbm_stopping_metric, gbm_stopping_rounds,
+    gbm_ntrees = 50, gbm_max_depth = 5, gbm_learn_rate = 0.1
 ) {
     withProgress(message = 'Calculating', value = 0, {
 
@@ -837,14 +1193,14 @@ do_gbm <- function(
             gbm_md <- h2o.gbm(
                 training_frame = train_h,
                 x = x, y = y,
-                max_depth = 20,
+                max_depth = gbm_max_depth,
                 distribution = "gaussian",
-                ntrees = 500,
-                learn_rate = 0.1,
+                ntrees = gbm_ntrees,
+                learn_rate = gbm_learn_rate,
                 score_each_iteration = TRUE,
-                stopping_rounds = ml_stopping_rounds,
-                stopping_metric = ml_stopping_metric,
-                max_runtime_secs = ml_max_runtime_secs
+                stopping_rounds = gbm_stopping_rounds,
+                stopping_metric = gbm_stopping_metric,
+                max_runtime_secs = gbm_max_runtime_secs
             )
               
             

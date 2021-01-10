@@ -4,6 +4,9 @@ ui <- navbarPage(
           useShinyjs(),
           sidebarLayout(
             sidebarPanel(
+              h4("Regression"),
+              img(src = "lr2.jpg", height = "100%", width = "100%"),
+              
               selectizeInput(
                 "stat_symbol_in", "Choose a symbol", choices = unique_symbols,
                 options = list(
@@ -57,6 +60,9 @@ ui <- navbarPage(
           useShinyjs(),
           sidebarLayout(
             sidebarPanel(
+              h4("Exponential smoothing"),
+              img(src = "exp1.png", height = "100%", width = "100%"),
+              
               selectizeInput(
                 "ets_symbol_in", "Choose a symbol", choices = unique_symbols,
                 options = list(
@@ -130,6 +136,9 @@ ui <- navbarPage(
           useShinyjs(),
           sidebarLayout(
             sidebarPanel(
+              h4("Deep learning"),
+              img(src = "deep1.jpeg", height = "100%", width = "100%"),
+              
               selectizeInput(
                 "ml_symbol_in", "Choose a symbol", choices = unique_symbols,
                 options = list(
@@ -209,6 +218,9 @@ ui <- navbarPage(
           useShinyjs(),
           sidebarLayout(
             sidebarPanel(
+              h4("Gradient boosting"),
+              img(src = "gbm5.png", height = "100%", width = "100%"),
+              
               selectizeInput(
                 "gbm_symbol_in", "Choose a symbol", choices = unique_symbols,
                 options = list(
@@ -282,6 +294,9 @@ ui <- navbarPage(
           useShinyjs(),
           sidebarLayout(
             sidebarPanel(
+              h4("Random Forest"),
+              img(src = "rf1.png", height = "100%", width = "100%"),
+              
               selectizeInput(
                 "rf_symbol_in", "Choose a symbol", choices = unique_symbols,
                 options = list(

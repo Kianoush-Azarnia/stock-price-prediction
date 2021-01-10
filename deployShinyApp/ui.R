@@ -4,7 +4,7 @@ ui <- navbarPage(
           useShinyjs(),
           sidebarLayout(
             sidebarPanel(
-              h4("Regression"),
+              h2("Regression"),
               img(src = "lr2.jpg", height = "100%", width = "100%"),
               
               selectizeInput(
@@ -60,7 +60,7 @@ ui <- navbarPage(
           useShinyjs(),
           sidebarLayout(
             sidebarPanel(
-              h4("Exponential smoothing"),
+              h2("Exponential smoothing"),
               img(src = "exp1.png", height = "100%", width = "100%"),
               
               selectizeInput(
@@ -136,7 +136,7 @@ ui <- navbarPage(
           useShinyjs(),
           sidebarLayout(
             sidebarPanel(
-              h4("Deep learning"),
+              h2("Deep learning"),
               img(src = "deep1.jpeg", height = "100%", width = "100%"),
               
               selectizeInput(
@@ -218,7 +218,7 @@ ui <- navbarPage(
           useShinyjs(),
           sidebarLayout(
             sidebarPanel(
-              h4("Gradient boosting"),
+              h2("Gradient boosting"),
               img(src = "gbm5.png", height = "100%", width = "100%"),
               
               selectizeInput(
@@ -294,7 +294,7 @@ ui <- navbarPage(
           useShinyjs(),
           sidebarLayout(
             sidebarPanel(
-              h4("Random Forest"),
+              h2("Random Forest"),
               img(src = "rf1.png", height = "100%", width = "100%"),
               
               selectizeInput(

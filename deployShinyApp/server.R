@@ -1,5 +1,5 @@
 server <- function(input, output, session) {
-    # stat
+    # reg
     #----
     stat_stock_df <- reactive({
       # make sure end date later than start date
@@ -40,17 +40,21 @@ server <- function(input, output, session) {
       stat_validate_before_plot()
       switch(
         input$stat_model_in, 
-        "ets" = (
-          do_ets(stock.symbol = input$stat_symbol_in, 
-                 trades = stat_stock_df(), window.size = input$stat_window_size)
-        ),
         "reg" = (
-          do_reg(stock.symbol = input$stat_symbol_in, 
-                 trades = stat_stock_df(), window.size = input$stat_window_size)
+          do_reg(
+            stock.symbol = input$stat_symbol_in, 
+            trades = stat_stock_df(), 
+            window.size = input$stat_window_size,
+            forecast_ahead = input$stat_horizon
+          )
         ),
         "multireg" = (
-          do_multi_reg(stock.symbol = input$stat_symbol_in, 
-                       trades = stat_stock_df(), window.size = input$stat_window_size)
+          do_multi_reg(
+            stock.symbol = input$stat_symbol_in, 
+            trades = stat_stock_df(), 
+            window.size = input$stat_window_size,
+            forecast_ahead = input$stat_horizon
+          )
         )
       )
     })
@@ -160,7 +164,8 @@ server <- function(input, output, session) {
             ml_stopping_rounds = input$ml_stopping_rounds,
             dl_activation = input$dl_activation,
             dl_distribution = input$dl_distribution,
-            dl_loss = input$dl_loss
+            dl_loss = input$dl_loss,
+            forecast_ahead = input$ml_horizon
           )
         ),
         "dlgrid" = (
@@ -169,7 +174,8 @@ server <- function(input, output, session) {
             trades = ml_stock_df(), window.size = input$ml_window_size,
             ml_max_runtime_secs = input$ml_max_runtime_secs,
             ml_stopping_metric = input$ml_stopping_metric,
-            ml_stopping_rounds = input$ml_stopping_rounds
+            ml_stopping_rounds = input$ml_stopping_rounds,
+            forecast_ahead = input$ml_horizon
           )
         )
       )
@@ -270,7 +276,8 @@ server <- function(input, output, session) {
         gbm_stopping_rounds = input$gbm_stopping_rounds,
         gbm_ntrees = input$gbm_ntrees,
         gbm_max_depth = input$gbm_max_depth,
-        gbm_learn_rate = input$gbm_learn_rate
+        gbm_learn_rate = input$gbm_learn_rate,
+        forecast_ahead = input$gbm_horizon
       )
     })
     
@@ -368,7 +375,8 @@ server <- function(input, output, session) {
         ml_stopping_metric = input$rf_stopping_metric,
         ml_stopping_rounds = input$rf_stopping_rounds,
         rf_ntrees = input$rf_ntrees,
-        rf_max_depth = input$rf_max_depth
+        rf_max_depth = input$rf_max_depth,
+        forecast_ahead = input$rf_horizon
       )
     })
     
@@ -459,8 +467,8 @@ server <- function(input, output, session) {
         window.size = input$ets_window_size,
         model = input$ets_model_in,
         multiplicative_trend = input$ets_multiplicative,
-        additive_only = input$ets_additive
-        
+        additive_only = input$ets_additive,
+        forecast_ahead = input$ets_horizon
       )
     })
     
@@ -514,10 +522,20 @@ server <- function(input, output, session) {
     # plot
     #----
     plot_prediction <- function(df) {
-      m <- df$predictions
-      p <- plot_ly(m, x = ~date, y = ~actual_final_price, 
+      ahead <- df$ahead
+      pred <- df$predictions
+      
+      join_df <- pred %>% full_join(ahead, by = "date")
+      
+      join_df$pred_plot <- join_df$predicted_price
+      
+      join_df$pred_plot <- ifelse(
+        is.na(join_df$pred_plot), join_df$pred_ahead, join_df$pred_plot
+      )
+      
+      p <- plot_ly(join_df, x = ~date, y = ~actual_final_price, 
                    type = "scatter", name = "actual price")
-      p %>% add_trace(x = m$date, y = m$predicted_price, 
+      p %>% add_trace(x = join_df$date, y = join_df$pred_plot, 
                       mode = "lines", name = "predicted price")
     }
     

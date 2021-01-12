@@ -33,6 +33,9 @@ ui <- navbarPage(
               
               tableOutput("stat_model_error"),
               
+              numericInput("stat_horizon", "Forcasting ahead", value = 1, 
+                           min = 1, max = 30),
+              
               numericInput("stat_window_size", "window size", value = 9, 
                            min = 9, max = 30),
               
@@ -90,6 +93,9 @@ ui <- navbarPage(
               ),
               
               tableOutput("ets_model_error"),
+              
+              numericInput("ets_horizon", "Forcasting ahead", value = 1, 
+                           min = 1, max = 30),
               
               selectizeInput(
                 "ets_damped", "Using damp trend", 
@@ -164,6 +170,9 @@ ui <- navbarPage(
               ),
               
               tableOutput("ml_model_error"),
+              
+              numericInput("ml_horizon", "Forcasting ahead", value = 1, 
+                           min = 1, max = 30),
               
               numericInput("ml_window_size", "window size", value = 20, 
                            min = 20, max = 50),
@@ -247,6 +256,9 @@ ui <- navbarPage(
               
               tableOutput("gbm_model_error"),
               
+              numericInput("gbm_horizon", "Forcasting ahead", value = 1, 
+                           min = 1, max = 30),
+              
               numericInput("gbm_ntress", "number of trees", value = 500,
                            min = 10, max = 1000, step = 10),
               
@@ -322,6 +334,9 @@ ui <- navbarPage(
               ),
               
               tableOutput("rf_model_error"),
+              
+              numericInput("rf_horizon", "Forcasting ahead", value = 1, 
+                           min = 1, max = 30),
               
               numericInput("rf_ntress", "number of trees", value = 500,
                            min = 10, max = 1000, step = 10),

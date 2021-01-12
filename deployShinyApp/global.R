@@ -80,7 +80,8 @@ do_ets <- function(
   stock.symbol, trades, window.size, model = "MNN",
   multiplicative_trend = FALSE,
   additive_only = FALSE,
-  damped_trend = NULL
+  damped_trend = NULL,
+  forecast_ahead = 1
 ) {
   withProgress(message = 'Calculating', value = 0, {
     # browser()
@@ -95,6 +96,12 @@ do_ets <- function(
     
     stock.df <- trades %>% filter(symbol == stock.symbol) %>% select(
       "date", "final_price", "change")
+    
+    ahead_df <- forecasting_ahead(
+      prices = stock.df$final_price, 
+      start_date = tail(stock.df, 1)$date,
+      horizon = forecast_ahead
+    )
     
     stock.ts <- ts(stock.df$final_price, frequency = 1)
     
@@ -176,6 +183,8 @@ do_ets <- function(
     result <- list(
       "df" = pred.df,
       
+      "ahead_df" = ahead_df,
+      
       "error_parameters" = data.frame("mape" = p$mape, "rmse" = p$rmse),
       
       "predictions" = pred.df[,c("date", "actual_final_price", 
@@ -204,7 +213,10 @@ do_ets <- function(
 
 #----
 # do regression
-do_reg <- function(stock.symbol, trades, window.size) {
+do_reg <- function(
+  stock.symbol, trades, window.size,
+  forecast_ahead = 1
+) {
   withProgress(message = 'Calculating', value = 0, {
     model <- "lr"
     rows.number <- length(model) * length(stock.symbol) 
@@ -218,6 +230,12 @@ do_reg <- function(stock.symbol, trades, window.size) {
     
     stock.df <- trades %>% filter(symbol == stock.symbol) %>% select(
       "date", "final_price", "change")
+    
+    ahead_df <- forecasting_ahead(
+      prices = stock.df$final_price, 
+      start_date = tail(stock.df, 1)$date,
+      horizon = forecast_ahead
+    )
     
     stock.ts <- ts(stock.df$final_price, frequency = 1)
     
@@ -296,6 +314,8 @@ do_reg <- function(stock.symbol, trades, window.size) {
     result <- list(
       "df" = pred.df,
       
+      "ahead_df" = ahead_df,
+      
       "error_parameters" = data.frame("mape" = p$mape, "rmse" = p$rmse),
       
       "predictions" = pred.df[,c("date", "actual_final_price", 
@@ -324,7 +344,10 @@ do_reg <- function(stock.symbol, trades, window.size) {
 
 #----
 # multi variable regression
-do_multi_reg <- function(stock.symbol, trades, window.size) {
+do_multi_reg <- function(
+  stock.symbol, trades, window.size,
+  forecast_ahead = 1
+) {
   withProgress(message = 'Calculating', value = 0, {
     
     model <- "multi-var LR"
@@ -338,6 +361,12 @@ do_multi_reg <- function(stock.symbol, trades, window.size) {
     names(pred.df) <- pred.cols
     
     stock.df <- trades %>% filter(symbol == stock.symbol)
+    
+    ahead_df <- forecasting_ahead(
+      prices = stock.df$final_price, 
+      start_date = tail(stock.df, 1)$date,
+      horizon = forecast_ahead
+    )
     
     stock.df <- shift_data_frame(stock.df)
     
@@ -420,6 +449,8 @@ do_multi_reg <- function(stock.symbol, trades, window.size) {
     result <- list(
       "df" = pred.df,
       
+      "ahead_df" = ahead_df,
+      
       "error_parameters" = data.frame("mape" = p$mape, "rmse" = p$rmse),
       
       "predictions" = pred.df[,c("date", "actual_final_price", 
@@ -451,7 +482,8 @@ do_multi_reg <- function(stock.symbol, trades, window.size) {
 do_gbm <- function(
   stock.symbol, trades, window.size,
   gbm_max_runtime_secs, gbm_stopping_metric, gbm_stopping_rounds,
-  gbm_ntrees = 50, gbm_max_depth = 5, gbm_learn_rate = 0.1
+  gbm_ntrees = 50, gbm_max_depth = 5, gbm_learn_rate = 0.1,
+  forecast_ahead = 1
 ) {
   withProgress(message = 'Calculating', value = 0, {
     
@@ -466,6 +498,12 @@ do_gbm <- function(
     names(pred.df) <- pred.cols
     
     stock.df <- trades %>% filter(symbol == stock.symbol)
+    
+    ahead_df <- forecasting_ahead(
+      prices = stock.df$final_price, 
+      start_date = tail(stock.df, 1)$date,
+      horizon = forecast_ahead
+    )
     
     stock.df <- shift_data_frame(stock.df)
     
@@ -561,6 +599,8 @@ do_gbm <- function(
     result <- list(
       "df" = pred.df,
       
+      "ahead_df" = ahead_df,
+      
       "error_parameters" = data.frame("mape" = p$mape, "rmse" = p$rmse),
       
       "predictions" = pred.df[,c("date", "actual_final_price", 
@@ -595,7 +635,8 @@ do_gbm <- function(
 do_random_forest <- function(
   stock.symbol, trades, window.size,
   ml_max_runtime_secs, ml_stopping_metric, ml_stopping_rounds,
-  rf_ntrees, rf_max_depth
+  rf_ntrees, rf_max_depth,
+  forecast_ahead = 1
 ) {
   withProgress(message = 'Calculating', value = 0, {
     
@@ -610,6 +651,12 @@ do_random_forest <- function(
     names(pred.df) <- pred.cols
     
     stock.df <- trades %>% filter(symbol == stock.symbol)
+    
+    ahead_df <- forecasting_ahead(
+      prices = stock.df$final_price, 
+      start_date = tail(stock.df, 1)$date,
+      horizon = forecast_ahead
+    )
     
     stock.df <- shift_data_frame(stock.df)
     
@@ -704,6 +751,8 @@ do_random_forest <- function(
     result <- list(
       "df" = pred.df,
       
+      "ahead_df" = ahead_df,
+      
       "error_parameters" = data.frame("mape" = p$mape, "rmse" = p$rmse),
       
       "predictions" = pred.df[,c("date", "actual_final_price", 
@@ -738,7 +787,8 @@ do_random_forest <- function(
 do_deep_learning <- function(
   stock.symbol, trades, window.size,
   ml_max_runtime_secs, ml_stopping_metric, ml_stopping_rounds,
-  dl_loss, dl_distribution, dl_activation
+  dl_loss, dl_distribution, dl_activation,
+  forecast_ahead = 1
 ) {
   withProgress(message = 'Calculating', value = 0, {
     
@@ -753,6 +803,12 @@ do_deep_learning <- function(
     names(pred.df) <- pred.cols
     
     stock.df <- trades %>% filter(symbol == stock.symbol)
+    
+    ahead_df <- forecasting_ahead(
+      prices = stock.df$final_price, 
+      start_date = tail(stock.df, 1)$date,
+      horizon = forecast_ahead
+    )
     
     stock.df <- shift_data_frame(stock.df)
     
@@ -853,6 +909,8 @@ do_deep_learning <- function(
     result <- list(
       "df" = pred.df,
       
+      "ahead_df" = ahead_df,
+      
       "error_parameters" = data.frame("mape" = p$mape, "rmse" = p$rmse),
       
       "predictions" = pred.df[,c("date", "actual_final_price", 
@@ -886,7 +944,8 @@ do_deep_learning <- function(
 # grid search on deep learning
 do_grid_on_deep_learning <- function(
   stock.symbol, trades, window.size,
-  ml_max_runtime_secs, ml_stopping_metric, ml_stopping_rounds
+  ml_max_runtime_secs, ml_stopping_metric, ml_stopping_rounds,
+  forecast_ahead = 1
 ) {
   withProgress(message = 'Calculating', value = 0, {
     
@@ -901,6 +960,12 @@ do_grid_on_deep_learning <- function(
     names(pred.df) <- pred.cols
     
     stock.df <- trades %>% filter(symbol == stock.symbol)
+    
+    ahead_df <- forecasting_ahead(
+      prices = stock.df$final_price, 
+      start_date = tail(stock.df, 1)$date,
+      horizon = forecast_ahead
+    )
     
     stock.df <- shift_data_frame(stock.df)
     
@@ -1031,6 +1096,8 @@ do_grid_on_deep_learning <- function(
     result <- list(
       "df" = pred.df,
       
+      "ahead_df" = ahead_df,
+      
       "error_parameters" = data.frame("mape" = p$mape, "rmse" = p$rmse),
       
       "predictions" = pred.df[,c("date", "actual_final_price", 
@@ -1120,4 +1187,28 @@ shift_vector <- function(x, n, up = FALSE){
     res <- c(rep(0, n), x[-length(x):(-length(x)+n-1)])    
   }
   return (res)
+}
+
+#----
+# forecasting days ahead
+forecasting_ahead <- function(prices, start_date, horizon = 1) {
+  end_date <- as.Date(start_date) + horizon
+  
+  start_date <- as.Date(start_date) + 1
+  
+  date <- seq(as.Date(start_date), as.Date(end_date), by = "day")
+  
+  train_ts <- ts(prices, frequency = 1)
+  
+  ets_fit <- ets(train_ts, model = "AAN")
+  
+  pred <- forecast(ets_fit, h = horizon)
+  
+  pred_ahead <- as.data.frame(pred)$"Point Forecast"
+  
+  date <- as.character(date)
+  
+  result <- data.frame(date, pred_ahead)
+  
+  return(result)
 }

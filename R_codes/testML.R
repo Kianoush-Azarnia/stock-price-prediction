@@ -1,4 +1,266 @@
 #----
+library("lubridate")
+library("dplyr")
+library("plotly")
+library("forecast")
+
+library("h2o")
+
+library("shiny")
+library("shinyjs")
+# library("shinydashboard")
+# library("shinycssloaders")
+
+#----
+# initialize data frame
+trade_df <- read.csv("../Data/trades_dataset.csv", encoding = "UTF-8")
+
+# drop unwanted columns
+drops <- c("X.U.FEFF.trade_id", "persian_name", "trade_date", "market_value")
+trade_df <- trade_df[ , !(names(trade_df) %in% drops)]
+
+# rename columns
+names(trade_df)[ 
+  names(trade_df) == "persian_symbol"
+] <- "symbol"
+
+names(trade_df)[ 
+  names(trade_df) == "pd_trade_date"
+] <- "date"
+
+# change date variable type from character to Date:
+trade_df$date <- as.Date(trade_df$date)
+
+# unique symbols
+unique_symbols <- trade_df %>% count(symbol) %>% filter(n >= 30) %>% 
+  select(symbol) %>% distinct()
+
+# define start date and end date variables:
+start_date <- (trade_df %>% select(date) %>% slice(which.min(date)))$date
+end_date <- (trade_df %>% select(date) %>% slice(which.max(date)))$date
+
+stat_models <- list(
+  "linear regression" = "reg", 
+  "multi-variable regression" = "multireg"
+) # "exponential smoothing" = "ets", 
+
+ml_models <- list(
+  "deep learning" = "dl", 
+  "deep learning grid" = "dlgrid"
+) #"gradient boost machine" = "gbm", "random forest" = "rf",
+
+ml_stopping_metric <- c("AUTO", "MSE", "RMSE", "MAE", "RMSLE", "AUC", "AUCPR")
+
+ets_models <- c("AAN", "ANN", "MAN", "MNN", "MMN")
+
+true_false_list <- list("True" = TRUE, "False" = FALSE)
+
+gbm_distributions <- c(
+  "AUTO", "bernoulli", "quasibinomial", "multinomial", "gaussian", "poisson", 
+  "gamma", "tweedie", "laplace", "quantile", "huber", "custom"
+)
+rf_distributions <- gbm_distributions
+
+dl_loss <- c(
+  "Automatic", "CrossEntropy", "Quadratic", "Huber", "Absolute", "Quantile"
+)
+
+dl_distribution = c(
+  "AUTO", "bernoulli", "multinomial", "gaussian", "poisson", "gamma",
+  "tweedie", "laplace", "quantile", "huber"
+)
+
+dl_activation = c(
+  "Tanh", "TanhWithDropout", "Rectifier", "RectifierWithDropout",
+  "Maxout", "MaxoutWithDropout"
+)
+
+shift_data_frame <- function(stock.df) {
+  stock.df$first_price <- shift_vector(stock.df$first_price, 1)
+  stock.df$last_trade_price <- shift_vector(stock.df$last_trade_price, 1)
+  stock.df$number_of_trades <- shift_vector(stock.df$number_of_trades, 1)
+  stock.df$volume <- shift_vector(stock.df$volume, 1)
+  stock.df$value <- shift_vector(stock.df$value, 1)
+  stock.df$min_price <- shift_vector(stock.df$min_price, 1)
+  stock.df$max_price <- shift_vector(stock.df$max_price, 1)
+  stock.df$change <- shift_vector(stock.df$change, 1)
+  
+  return(stock.df)
+}
+
+#----
+# shift vector
+shift_vector <- function(x, n, up = FALSE){
+  if (up) {
+    res <- c(x[-(seq(n))], rep(0, n))
+  } else {
+    res <- c(rep(0, n), x[-length(x):(-length(x)+n-1)])    
+  }
+  return (res)
+}
+
+# deep learning
+do_deep_learning <- function(
+  stock.symbol = "شفن", trades = trade_df, window.size = 30,
+  ml_max_runtime_secs = 7, ml_stopping_metric = "RMSE"
+  # ml_stopping_rounds,
+  # dl_loss, dl_distribution, dl_activation,
+  # forecast_ahead = 1
+) {
+  # withProgress(message = 'Calculating', value = 0, {
+    
+    model <- "DL"
+    rows.number <- length(model) * length(stock.symbol) 
+    
+    pred.cols <- c(
+      "symbol", "date", "actual_final_price", "change", "model", 
+      "predicted_price", "ME", "MAPE", "RMSE"
+    )
+    pred.df <- data.frame(matrix(nrow=0, ncol=length(pred.cols)))
+    names(pred.df) <- pred.cols
+    
+    stock.df <- trades %>% filter(
+      symbol == stock.symbol & date <= "2020-09-09" & date >= "2020-05-05")
+    
+    # ahead_df <- forecasting_ahead(
+    #   prices = stock.df$final_price, 
+    #   start_date = tail(stock.df, 1)$date,
+    #   horizon = forecast_ahead
+    # )
+    
+    stock.df <- shift_data_frame(stock.df)
+    
+    len <- nrow(stock.df)
+    stock.df$index <- 1:len
+    
+    stock.df$trades_number_inverse <- (
+      (stock.df$number_of_trades + 0.0001)^(-1)
+    )
+    
+    valid.size <- 1
+    train.size <- window.size
+    
+    #rep(x, y): replicate x, y times
+    me.list <- rep(0, len - train.size - valid.size + 1)
+    rmse.list <- rep(0, len - train.size - valid.size + 1)
+    mape.list <- rep(0, len - train.size - valid.size + 1)
+    
+    h2o.init(max_mem_size = "4G")
+    
+    for(j in 1 : (len - train.size - valid.size)) {
+      day.index <- j + train.size + valid.size
+      
+      train_df <- stock.df[j:(j+train.size),]
+      test_df <- stock.df[day.index:day.index,]
+      
+      train_h <- as.h2o(train_df)
+      test_h <- as.h2o(test_df)
+      
+      x <- colnames(stock.df)
+      y <- "final_price"
+      
+      dl_md <- h2o.deeplearning(
+        x = x, y = y,
+        # distribution = dl_distribution,
+        # activation = dl_activation,
+        # loss = dl_loss,
+        epochs = 1000,
+        train_samples_per_iteration = -1,
+        reproducible = FALSE,
+        balance_classes = FALSE,
+        force_load_balance = FALSE,
+        seed = 2020,
+        score_training_samples = 0,
+        score_validation_samples = 0,
+        training_frame = train_h,
+        # stopping_rounds = ml_stopping_rounds,
+        stopping_metric = ml_stopping_metric,
+        max_runtime_secs = ml_max_runtime_secs
+      )
+      
+      test_h$yhat <- h2o.predict(dl_md, test_h)
+      
+      symbol_list <- rep(stock.symbol, valid.size)
+      model_list <- rep(model, valid.size)
+      
+      tdate <- test_df$date
+      change <- test_df$change
+      actual.price <- test_df$final_price
+      
+      pred.price <- as.data.frame(test_h$yhat)$yhat
+      
+      me.list[[j]] <- actual.price - pred.price
+      
+      rmse.list[[j]] <- (sum((actual.price - pred.price) ^ 2) / 
+                           valid.size) ^ (0.5)
+      
+      mape.list[[j]] <- (abs(actual.price - pred.price) / 
+                           (actual.price + 0.0001)) * 100
+      
+      temp.pred.df <- data.frame(
+        symbol_list, tdate, actual.price, change, model_list, 
+        pred.price, me.list[[j]], rmse.list[[j]], mape.list[[j]]
+      )
+      
+      colnames(temp.pred.df) <- pred.cols
+      pred.df <- rbind(pred.df, temp.pred.df)
+      remove(temp.pred.df)
+      
+      if(j %% 40 == 0) {print(j)}
+      # incProgress(
+      #   1/(len - train.size - valid.size),
+      #   detail = paste(j, " th day")
+      # )
+      
+    }
+    p <- list("model" = model, "sym" = stock.symbol, 
+              "mape" = mean(mape.list), "rmse" = mean(rmse.list))
+    print(p)
+    
+    pred.df[,"date"] <- as.character(pred.df[,"date"])
+    
+    profit <- sign(
+      (
+        pred.df$predicted_price - 
+         shift_vector(pred.df$actual_final_price, 1)
+      ) * shift_vector(pred.df$change, 1, up = TRUE)
+    )
+    
+    result <- list(
+      "df" = pred.df,
+      
+      #"ahead_df" = ahead_df,
+      
+      "error_parameters" = data.frame("mape" = p$mape, "rmse" = p$rmse),
+      
+      "predictions" = pred.df[,c("date", "actual_final_price", 
+                                 "predicted_price")],
+      
+      "residuals" = pred.df[,c("date", "ME")],
+      
+      "profits" = data.frame(
+        "profit" = c("Wrong", "Right"), 
+        "color" = c("red", "green"),
+        "sum" = c(
+          abs(sum(profit[profit == -1])),
+          sum(profit[profit != -1])
+        )
+      ),
+      
+      "profit_percent" = round(
+        (length(profit[profit != -1])/length(profit)), 4
+      ) * 100
+    )
+    
+    h2o.shutdown(prompt = FALSE)
+  #})
+  
+  print("__________Finished__________")
+  
+  return(result)
+}
+
+#----
 # read csv, rename columns, change date data type to date
 sufficient_trades_ts_df = read.csv(
   "../Data/sufficient_trades_time_series.csv", encoding = "UTF-8")
@@ -238,7 +500,6 @@ plot_ly(x = final_forecast$index, y = final_forecast$y,
          yaxis = list(title = "Price"),
          xaxis = list(title = "Day"))
 
-#----
 #----
 # read csv, rename columns, change date data type to date
 sel_stocks_df = read.csv(

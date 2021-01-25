@@ -83,7 +83,7 @@ do_ets <- function(
   damped_trend = NULL,
   forecast_ahead = 1
 ) {
-  withProgress(message = 'Calculating', value = 0, {
+  withProgress(message = 'Calculating ETS', value = 0, {
     # browser()
     rows.number <- length(model) * length(stock.symbol) 
     
@@ -146,7 +146,7 @@ do_ets <- function(
       
       incProgress(
         1/(len - train.size - valid.size), 
-        detail = paste(j, " th day")
+        detail = paste("day: ", j)
       )
       
       temp.pred.df <- data.frame(matrix(
@@ -217,8 +217,8 @@ do_reg <- function(
   stock.symbol, trades, window.size,
   forecast_ahead = 1
 ) {
-  withProgress(message = 'Calculating', value = 0, {
-    model <- "lr"
+  withProgress(message = 'Calculating LR', value = 0, {
+    model <- "LR"
     rows.number <- length(model) * length(stock.symbol) 
     
     pred.cols <- c(
@@ -275,7 +275,7 @@ do_reg <- function(
       
       incProgress(
         1/(len - train.size - valid.size), 
-        detail = paste(j, " th day")
+        detail = paste("day: ", j)
       )
       
       temp.pred.df <- data.frame(matrix(
@@ -348,7 +348,7 @@ do_multi_reg <- function(
   stock.symbol, trades, window.size,
   forecast_ahead = 1
 ) {
-  withProgress(message = 'Calculating', value = 0, {
+  withProgress(message = 'Calculating mVarLR', value = 0, {
     
     model <- "multi-var LR"
     rows.number <- length(model) * length(stock.symbol) 
@@ -417,7 +417,7 @@ do_multi_reg <- function(
       
       incProgress(
         1/(len - train.size - valid.size),
-        detail = paste(j, " th day")
+        detail = paste("day: ", j)
       )
       
       temp.pred.df <- data.frame(matrix(
@@ -485,9 +485,9 @@ do_gbm <- function(
   gbm_ntrees = 50, gbm_max_depth = 5, gbm_learn_rate = 0.1,
   forecast_ahead = 1
 ) {
-  withProgress(message = 'Calculating', value = 0, {
+  withProgress(message = 'Calculating GBM', value = 0, {
     
-    model <- "Gradient Boost"
+    model <- "GBM"
     rows.number <- length(model) * length(stock.symbol) 
     
     pred.cols <- c(
@@ -579,9 +579,10 @@ do_gbm <- function(
       remove(temp.pred.df)
       
       if(j %% 40 == 0) {print(j)}
+      
       incProgress(
         1/(len - train.size - valid.size),
-        detail = paste(j, " th day")
+        detail = paste("day: ", j)
       )
       
     }
@@ -638,9 +639,9 @@ do_random_forest <- function(
   rf_ntrees, rf_max_depth,
   forecast_ahead = 1
 ) {
-  withProgress(message = 'Calculating', value = 0, {
+  withProgress(message = 'Calculating RF', value = 0, {
     
-    model <- "Gradient Boost"
+    model <- "RF"
     rows.number <- length(model) * length(stock.symbol) 
     
     pred.cols <- c(
@@ -731,9 +732,10 @@ do_random_forest <- function(
       remove(temp.pred.df)
       
       if(j %% 40 == 0) {print(j)}
+      
       incProgress(
         1/(len - train.size - valid.size),
-        detail = paste(j, " th day")
+        detail = paste("day: ", j)
       )
       
     }
@@ -790,9 +792,9 @@ do_deep_learning <- function(
   dl_loss, dl_distribution, dl_activation,
   forecast_ahead = 1
 ) {
-  withProgress(message = 'Calculating', value = 0, {
+  withProgress(message = 'Calculating DL', value = 0, {
     
-    model <- "Gradient Boost"
+    model <- "DL"
     rows.number <- length(model) * length(stock.symbol) 
     
     pred.cols <- c(
@@ -889,9 +891,10 @@ do_deep_learning <- function(
       remove(temp.pred.df)
       
       if(j %% 40 == 0) {print(j)}
+      
       incProgress(
         1/(len - train.size - valid.size),
-        detail = paste(j, " th day")
+        detail = paste("day: ", j)
       )
       
     }
@@ -947,9 +950,9 @@ do_grid_on_deep_learning <- function(
   ml_max_runtime_secs, ml_stopping_metric, ml_stopping_rounds,
   forecast_ahead = 1
 ) {
-  withProgress(message = 'Calculating', value = 0, {
+  withProgress(message = 'Calculating DL-grid', value = 0, {
     
-    model <- "Gradient Boost"
+    model <- "DL-grid"
     rows.number <- length(model) * length(stock.symbol) 
     
     pred.cols <- c(
@@ -1073,9 +1076,10 @@ do_grid_on_deep_learning <- function(
       remove(temp.pred.df)
       
       if(j %% 40 == 0) {print(j)}
+      
       incProgress(
         1/(len - train.size - valid.size),
-        detail = paste(j, " th day")
+        detail = paste("day: ", j)
       )
       
       h2o.shutdown(prompt = FALSE)

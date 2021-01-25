@@ -176,8 +176,10 @@ do_ets <- function(
     pred.df[,"date"] <- as.character(pred.df[,"date"])
     
     profit <- sign(
-      ( pred.df$predicted_price - 
-          shift_vector(pred.df$actual_final_price, 1)) * pred.df$change
+      (
+        pred.df$predicted_price - 
+          shift_vector(pred.df$actual_final_price, 1)
+      ) * shift_vector(pred.df$change, 1, up = TRUE)
     )
     
     result <- list(
@@ -196,14 +198,14 @@ do_ets <- function(
         "profit" = c("Wrong", "Right"), 
         "color" = c("red", "green"),
         "sum" = c(
-          abs(sum(profit[profit == -1])),
-          sum(profit[profit != -1])
+          length(profit[profit == -1]),
+          length(profit[profit != -1])
         )
       ),
       
       "profit_percent" = round(
-        sum(profit[profit != -1]/length(profit)), 4
-      )
+        (length(profit[profit != -1])/length(profit)), 4
+      ) * 100
     )
   })
   print("__________Finished__________")
@@ -307,8 +309,8 @@ do_reg <- function(
     profit <- sign(
       (
         pred.df$predicted_price - 
-          shift_vector(pred.df$actual_final_price, 1)) * 
-        pred.df$change
+          shift_vector(pred.df$actual_final_price, 1)
+      ) * shift_vector(pred.df$change, 1, up = TRUE)
     )
     
     result <- list(
@@ -327,14 +329,14 @@ do_reg <- function(
         "profit" = c("Wrong", "Right"), 
         "color" = c("red", "green"),
         "sum" = c(
-          abs(sum(profit[profit == -1])),
-          sum(profit[profit != -1])
+          length(profit[profit == -1]),
+          length(profit[profit != -1])
         )
       ),
       
       "profit_percent" = round(
-        sum(profit[profit != -1]/length(profit)), 4
-      )
+        (length(profit[profit != -1])/length(profit)), 4
+      ) * 100
     )
   })
   print("__________Finished__________")
@@ -442,8 +444,10 @@ do_multi_reg <- function(
     pred.df[,"date"] <- as.character(pred.df[,"date"])
     
     profit <- sign(
-      (pred.df$predicted_price - 
-         shift_vector(pred.df$actual_final_price, 1)) * pred.df$change
+      (
+        pred.df$predicted_price - 
+          shift_vector(pred.df$actual_final_price, 1)
+      ) * shift_vector(pred.df$change, 1, up = TRUE)
     )
     
     result <- list(
@@ -462,14 +466,14 @@ do_multi_reg <- function(
         "profit" = c("Wrong", "Right"), 
         "color" = c("red", "green"),
         "sum" = c(
-          abs(sum(profit[profit == -1])),
-          sum(profit[profit != -1])
+          length(profit[profit == -1]),
+          length(profit[profit != -1])
         )
       ),
       
       "profit_percent" = round(
-        sum(profit[profit != -1]/length(profit)), 4
-      )
+        (length(profit[profit != -1])/length(profit)), 4
+      ) * 100
     )
   })
   print("__________Finished__________")
@@ -593,8 +597,10 @@ do_gbm <- function(
     pred.df[,"date"] <- as.character(pred.df[,"date"])
     
     profit <- sign(
-      (pred.df$predicted_price - 
-         shift_vector(pred.df$actual_final_price, 1)) * pred.df$change
+      (
+        pred.df$predicted_price - 
+          shift_vector(pred.df$actual_final_price, 1)
+      ) * shift_vector(pred.df$change, 1, up = TRUE)
     )
     
     result <- list(
@@ -613,14 +619,14 @@ do_gbm <- function(
         "profit" = c("Wrong", "Right"), 
         "color" = c("red", "green"),
         "sum" = c(
-          abs(sum(profit[profit == -1])),
-          sum(profit[profit != -1])
+          length(profit[profit == -1]),
+          length(profit[profit != -1])
         )
       ),
       
       "profit_percent" = round(
-        sum(profit[profit != -1]/length(profit)), 4
-      )
+        (length(profit[profit != -1])/length(profit)), 4
+      ) * 100
     )
     
     h2o.shutdown(prompt = FALSE)
@@ -746,8 +752,10 @@ do_random_forest <- function(
     pred.df[,"date"] <- as.character(pred.df[,"date"])
     
     profit <- sign(
-      (pred.df$predicted_price - 
-         shift_vector(pred.df$actual_final_price, 1)) * pred.df$change
+      (
+        pred.df$predicted_price - 
+          shift_vector(pred.df$actual_final_price, 1)
+      ) * shift_vector(pred.df$change, 1, up = TRUE)
     )
     
     result <- list(
@@ -766,14 +774,14 @@ do_random_forest <- function(
         "profit" = c("Wrong", "Right"), 
         "color" = c("red", "green"),
         "sum" = c(
-          abs(sum(profit[profit == -1])),
-          sum(profit[profit != -1])
+          length(profit[profit == -1]),
+          length(profit[profit != -1])
         )
       ),
       
       "profit_percent" = round(
-        sum(profit[profit != -1]/length(profit)), 4
-      )
+        (length(profit[profit != -1])/length(profit)), 4
+      ) * 100
     )
     
     h2o.shutdown(prompt = FALSE)
@@ -905,8 +913,10 @@ do_deep_learning <- function(
     pred.df[,"date"] <- as.character(pred.df[,"date"])
     
     profit <- sign(
-      (pred.df$predicted_price - 
-         shift_vector(pred.df$actual_final_price, 1)) * pred.df$change
+      (
+        pred.df$predicted_price - 
+          shift_vector(pred.df$actual_final_price, 1)
+      ) * shift_vector(pred.df$change, 1, up = TRUE)
     )
     
     result <- list(
@@ -925,14 +935,14 @@ do_deep_learning <- function(
         "profit" = c("Wrong", "Right"), 
         "color" = c("red", "green"),
         "sum" = c(
-          abs(sum(profit[profit == -1])),
-          sum(profit[profit != -1])
+          length(profit[profit == -1]),
+          length(profit[profit != -1])
         )
       ),
       
       "profit_percent" = round(
-        sum(profit[profit != -1]/length(profit)), 4
-      )
+        (length(profit[profit != -1])/length(profit)), 4
+      ) * 100
     )
     
     h2o.shutdown(prompt = FALSE)
@@ -1093,8 +1103,10 @@ do_grid_on_deep_learning <- function(
     pred.df[,"date"] <- as.character(pred.df[,"date"])
     
     profit <- sign(
-      (pred.df$predicted_price - 
-         shift_vector(pred.df$actual_final_price, 1)) * pred.df$change
+      (
+        pred.df$predicted_price - 
+          shift_vector(pred.df$actual_final_price, 1)
+      ) * shift_vector(pred.df$change, 1, up = TRUE)
     )
     
     result <- list(
@@ -1113,14 +1125,14 @@ do_grid_on_deep_learning <- function(
         "profit" = c("Wrong", "Right"), 
         "color" = c("red", "green"),
         "sum" = c(
-          abs(sum(profit[profit == -1])),
-          sum(profit[profit != -1])
+          length(profit[profit == -1]),
+          length(profit[profit != -1])
         )
       ),
       
       "profit_percent" = round(
-        sum(profit[profit != -1]/length(profit)), 4
-      )
+        (length(profit[profit != -1])/length(profit)), 4
+      ) * 100
     )
     
   })

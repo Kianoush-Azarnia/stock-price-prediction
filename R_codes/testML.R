@@ -83,7 +83,7 @@ shift_data_frame <- function(stock.df) {
   stock.df$value <- shift_vector(stock.df$value, 1)
   stock.df$min_price <- shift_vector(stock.df$min_price, 1)
   stock.df$max_price <- shift_vector(stock.df$max_price, 1)
-  stock.df$change <- shift_vector(stock.df$change, 1)
+  stock.df$final_price <- shift_vector(stock.df$final_price, 1)
   
   return(stock.df)
 }

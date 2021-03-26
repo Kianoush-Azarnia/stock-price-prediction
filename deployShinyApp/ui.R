@@ -142,7 +142,7 @@ ui <- navbarPage(
           useShinyjs(),
           sidebarLayout(
             sidebarPanel(
-              h2("Deep learning"),
+              h2("Multilayer Perceptron"),
               img(src = "deep1.jpeg", height = "100%", width = "100%"),
               
               selectizeInput(
